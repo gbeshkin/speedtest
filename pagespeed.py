@@ -516,7 +516,9 @@ def main():
 
     now = dt.datetime.now().astimezone()
     run_label = now.strftime("%Y-%m-%d %H:%M %z")
-    ts_file = now.strftime("%Y-%m-%dT%H%M")  # safe filename, no ':'
+    ts_file = now.strftime("%Y-%m-%dT%H%M") 
+    write_json(os.path.join("reports", f"snapshot-{ts_file}.json"), snapshot)
+    write_json(os.path.join("reports", "latest.json"), snapshot)
 
     latest_json = os.path.join(OUT_DIR, "latest.json")
     prev_snapshot = safe_read_json(latest_json)
