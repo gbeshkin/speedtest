@@ -1,4 +1,4 @@
-name: PageSpeed Monitor (GitHub Pages)
+name: PageSpeed Monitor
 
 on:
   workflow_dispatch:
@@ -9,51 +9,46 @@ concurrency:
   group: pagespeed-monitor
   cancel-in-progress: true
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 jobs:
-  build:
+  monitor:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install deps
+      - name: Install dependencies
         run: pip install --no-cache-dir requests
 
-      - name: Run PageSpeed
+      - name: Run PageSpeed script
         env:
           PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
         run: |
           python pagespeed.py
+          echo "=== reports folder ==="
           ls -la reports
-          test -f reports/latest.html
 
-      - name: Prepare site folder
+      - name: Publish report to Pages
         run: |
-          mkdir -p site
-          cp reports/latest.html site/index.html
-          cp reports/latest.html site/latest.html
-          touch site/.nojekyll
+          mkdir -p docs
+          cp reports/latest.html docs/index.html
+          cp reports/latest.html docs/latest.html
+          touch docs/.nojekyll
+          echo "=== docs folder ==="
+          ls -la docs
 
-      - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
-        with:
-          path: site
-
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - name: Deploy to GitHub Pages
-        id: deployment
-        uses: actions/deploy-pages@v4
+      - name: Commit & push if changed
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add docs
+          git diff --quiet && git diff --staged --quiet || git commit -m "auto: update pagespeed report"
+          git push
