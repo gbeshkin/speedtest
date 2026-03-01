@@ -12,68 +12,36 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
     steps:
-      # 1️⃣ скачать репозиторий
-      - name: Checkout repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      # 2️⃣ показать структуру (диагностика)
-      - name: Debug repository structure
-        run: |
-          echo "ROOT:"
-          ls -la
-          echo "TREE:"
-          find . -maxdepth 2 -type f
-
-      # 3️⃣ проверить наличие скрипта
-      - name: Ensure pagespeed.py exists
-        run: |
-          test -f pagespeed.py
-          echo "pagespeed.py found ✅"
-
-      # 4️⃣ установить Python
-      - name: Setup Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      # 5️⃣ установить зависимости
-      - name: Install dependencies
-        run: |
-          python --version
-          pip install --no-cache-dir requests
+      - name: Install deps
+        run: pip install --no-cache-dir requests
 
-      # 6️⃣ запустить мониторинг
-      - name: Run PageSpeed script
+      - name: Run PageSpeed
         env:
           PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
         run: |
-          echo "Running pagespeed.py..."
           python pagespeed.py
-
-          echo "Reports folder:"
-          ls -la reports || true
-
+          ls -la reports
           test -f reports/latest.html
-          echo "latest.html created ✅"
 
-      # 7️⃣ подготовить GitHub Pages
-      - name: Publish report to Pages
+      - name: Publish to Pages (/docs)
         run: |
           mkdir -p docs
           cp reports/latest.html docs/index.html
           cp reports/latest.html docs/latest.html
           touch docs/.nojekyll
-
-          echo "Docs folder:"
           ls -la docs
 
-      # 8️⃣ закоммитить обновления
-      - name: Commit & push
+      - name: Commit & push docs
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
