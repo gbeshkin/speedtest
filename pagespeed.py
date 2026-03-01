@@ -516,18 +516,33 @@ def main():
 
     now = dt.datetime.now().astimezone()
     run_label = now.strftime("%Y-%m-%d %H:%M %z")
-    ts_file = now.strftime("%Y-%m-%dT%H%M")
-    write_json(os.path.join("reports", f"snapshot-{ts_file}.json"), snapshot)
-    write_json(os.path.join("reports", "latest.json"), snapshot)
+    ts_file = now.strftime("%Y-%m-%dT%H%M")  # for filenames
 
     latest_json = os.path.join(OUT_DIR, "latest.json")
     prev_snapshot = safe_read_json(latest_json)
 
     print("Fetching PageSpeed...")
 
-    mobile_raw = fetch("mobile")
-    desktop_raw = fetch("desktop")
+    try:
+        mobile_raw = fetch("mobile")
+        time.sleep(2)  # small spacing helps PSI stability
+        desktop_raw = fetch("desktop")
+    except Exception as e:
+        # ✅ If PSI fails, write fallback report and EXIT cleanly
+        html = build_error_html(run_label, str(e))
 
+        latest_html = os.path.join(OUT_DIR, "latest.html")
+        with open(latest_html, "w", encoding="utf-8") as f:
+            f.write(html)
+
+        dated_html = os.path.join(OUT_DIR, "report-ERROR-{}.html".format(ts_file))
+        with open(dated_html, "w", encoding="utf-8") as f:
+            f.write(html)
+
+        print("⚠️ PSI fetch failed, wrote fallback report:", latest_html)
+        return  # ✅ IMPORTANT: do not continue
+
+    # ✅ snapshot exists ONLY here (after successful fetch)
     snapshot = {
         "date": now.strftime("%Y-%m-%d"),
         "time": now.strftime("%H:%M"),
@@ -547,14 +562,14 @@ def main():
     write_json(os.path.join(OUT_DIR, "psi-mobile-{}.json".format(ts_file)), mobile_raw)
     write_json(os.path.join(OUT_DIR, "psi-desktop-{}.json".format(ts_file)), desktop_raw)
 
-    # Save snapshot history + latest pointer
+    # ✅ Save snapshot history + latest pointer
     write_json(os.path.join(OUT_DIR, "snapshot-{}.json".format(ts_file)), snapshot)
     write_json(latest_json, snapshot)
 
-    # cleanup to keep only 3 days (864 points)
+    # keep only last 3 days worth of points
     cleanup_old_snapshots(OUT_DIR, CHART_POINTS)
 
-    # history for chart (last 3 days / points)
+    # build history for chart
     history, debug_names = list_last_snapshots(OUT_DIR, CHART_POINTS)
 
     html = build_manager_html(run_label, snapshot, prev_snapshot, history, debug_names)
@@ -569,10 +584,7 @@ def main():
 
     print("✅ Done.")
     print("Latest report:", latest_html)
-    print("Archive report:", dated_html)
     print("Snapshots found for chart:", len(history))
-    if debug_names:
-        print("Last snapshot files:", ", ".join(debug_names))
 
 
 if __name__ == "__main__":
