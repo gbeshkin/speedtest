@@ -23,14 +23,17 @@ CATEGORIES = ["performance", "accessibility", "best-practices", "seo"]
 GOOD = 90
 OK = 70
 
+# We run every 5 minutes and want 3 days of history:
+# 3 days = 72 hours, 12 points/hour => 864 points
+CHART_POINTS = 864
+
 # chart settings
-CHART_DAYS = 7
 CHART_W = 920
-CHART_H = 220
+CHART_H = 240
 CHART_PAD_L = 44
 CHART_PAD_R = 16
 CHART_PAD_T = 18
-CHART_PAD_B = 38
+CHART_PAD_B = 48
 
 SESSION = requests.Session()
 
@@ -123,7 +126,7 @@ def arrow(delta: Optional[int]) -> str:
 
 
 # =========================
-# FILE IO
+# FILE IO + HISTORY
 # =========================
 
 def safe_read_json(path: str) -> Optional[Dict[str, Any]]:
@@ -139,23 +142,39 @@ def write_json(path: str, obj: Dict[str, Any]) -> None:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
-def list_last_snapshots(out_dir: str, days: int) -> List[Dict[str, Any]]:
+def list_last_snapshots(out_dir: str, points: int) -> List[Dict[str, Any]]:
+    """
+    Reads snapshot-YYYY-MM-DDTHHMM.json, sorts by timestamp in name, returns last N.
+    """
     items: List[Tuple[str, str]] = []
     for name in os.listdir(out_dir):
         if name.startswith("snapshot-") and name.endswith(".json"):
-            date_part = name[len("snapshot-"):-len(".json")]
-            items.append((date_part, os.path.join(out_dir, name)))
+            ts_part = name[len("snapshot-"):-len(".json")]
+            items.append((ts_part, os.path.join(out_dir, name)))
 
-    items.sort(key=lambda x: x[0])  # YYYY-MM-DD sorts lexicographically
-    items = items[-days:]
+    items.sort(key=lambda x: x[0])  # YYYY-MM-DDTHHMM
+    items = items[-points:]
 
     snapshots: List[Dict[str, Any]] = []
-    for date_part, path in items:
+    for _, path in items:
         obj = safe_read_json(path)
         if obj and isinstance(obj, dict):
             snapshots.append(obj)
-
     return snapshots
+
+
+def cleanup_old_snapshots(out_dir: str, keep: int) -> None:
+    """
+    Keeps only the newest `keep` snapshots (by filename sort), deletes older ones.
+    """
+    files = [n for n in os.listdir(out_dir) if n.startswith("snapshot-") and n.endswith(".json")]
+    files.sort()  # oldest -> newest due to timestamp naming
+    to_delete = files[:-keep] if len(files) > keep else []
+    for name in to_delete:
+        try:
+            os.remove(os.path.join(out_dir, name))
+        except Exception:
+            pass
 
 
 def svg_escape(s: str) -> str:
@@ -167,19 +186,26 @@ def svg_escape(s: str) -> str:
 
 
 # =========================
-# SVG CHART (7 DAYS PERF)
+# SVG CHART (3 DAYS, 5 MIN)
 # =========================
 
 def build_perf_svg(history: List[Dict[str, Any]]) -> str:
     if not history:
-        return "<div class='meta'>No history yet (need at least 1 snapshot file).</div>"
+        return "<div class='meta'>No history yet (need at least 1 snapshot).</div>"
 
     labels: List[str] = []
     mob: List[int] = []
     desk: List[int] = []
 
     for s in history:
-        labels.append(str(s.get("date", ""))[5:])  # MM-DD
+        # X label = HH:MM
+        if "time" in s and s.get("time"):
+            labels.append(str(s.get("time")))
+        elif "timestamp" in s and s.get("timestamp"):
+            labels.append(str(s.get("timestamp"))[11:16])
+        else:
+            labels.append(str(s.get("date", ""))[5:])
+
         mob.append(int(s["mobile"]["scores"]["performance"]))
         desk.append(int(s["desktop"]["scores"]["performance"]))
 
@@ -208,18 +234,9 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
         pts = ["{:.2f},{:.2f}".format(x(i), y(v)) for i, v in enumerate(series)]
         return "M " + " L ".join(pts) if pts else ""
 
-    def points(series: List[int], cls: str) -> str:
-        circles = []
-        for i, v in enumerate(series):
-            circles.append("<circle class='{cls}' cx='{cx:.2f}' cy='{cy:.2f}' r='3.3'/>".format(
-                cls=cls, cx=x(i), cy=y(v)
-            ))
-        return "".join(circles)
-
     # ticks: min / mid / max
     ticks = [minv, int((minv + maxv) / 2), maxv]
 
-    # grid + y labels
     ygrid = []
     for tv in ticks:
         yy = y(tv)
@@ -230,14 +247,18 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
             x=CHART_PAD_L - 8, y=yy + 4, tv=tv
         ))
 
-    # x labels
+    # x labels: show every 2 hours to avoid clutter
+    # 5-minute points => 12 points/hour => 24 points per 2 hours
+    step = 24
     xlabels = []
     for i, lab in enumerate(labels):
+        if (i % step != 0) and (i != n - 1):
+            continue
         xlabels.append("<text x='{:.2f}' y='{}' text-anchor='middle' class='svg-x'>{}</text>".format(
-            x(i), CHART_PAD_T + plot_h + 22, svg_escape(lab)
+            x(i), CHART_PAD_T + plot_h + 28, svg_escape(lab)
         ))
 
-    # deltas
+    # last deltas vs previous point
     last_m = mob[-1]
     last_d = desk[-1]
     prev_m = mob[-2] if len(mob) >= 2 else None
@@ -252,18 +273,16 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
       </div>
     """.format(m=last_m, d=last_d, dm=arrow(dm), dd=arrow(dd))
 
+    # points: keep lightweight for many points (no circles for 864 pts)
     svg = """{legend}
-<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" aria-label="7-day Performance trend">
+<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" aria-label="3-day Performance trend (5-min runs)">
   <rect x="0" y="0" width="{w}" height="{h}" rx="16" class="svg-bg"/>
   {ygrid}
   <line x1="{l}" y1="{t}" x2="{l}" y2="{b}" class="svg-axis"/>
   <line x1="{l}" y1="{b}" x2="{r}" y2="{b}" class="svg-axis"/>
 
   <path d="{mp}" class="svg-line-m"/>
-  <g class="svg-pts-m">{mpts}</g>
-
   <path d="{dp}" class="svg-line-d"/>
-  <g class="svg-pts-d">{dpts}</g>
 
   {xlabels}
 </svg>
@@ -278,8 +297,6 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
         b=CHART_PAD_T + plot_h,
         mp=path(mob),
         dp=path(desk),
-        mpts=points(mob, "ptm"),
-        dpts=points(desk, "ptd"),
         xlabels="".join(xlabels),
     )
     return svg
@@ -290,7 +307,7 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
 # =========================
 
 def build_manager_html(
-    today: str,
+    run_label: str,
     snapshot: Dict[str, Any],
     prev_snapshot: Optional[Dict[str, Any]],
     history: List[Dict[str, Any]]
@@ -388,8 +405,6 @@ def build_manager_html(
     .svg-axis {{ stroke:#d7d7d7; stroke-width:1.2; }}
     .svg-line-m {{ fill:none; stroke:#111; stroke-width:2.2; }}
     .svg-line-d {{ fill:none; stroke:#111; stroke-opacity:.55; stroke-width:2.2; stroke-dasharray:6 5; }}
-    .svg-pts-m circle {{ fill:#111; }}
-    .svg-pts-d circle {{ fill:#111; fill-opacity:.55; }}
     .svg-x {{ font-size:11px; fill:#666; }}
     .svg-y {{ font-size:11px; fill:#666; }}
   </style>
@@ -399,7 +414,7 @@ def build_manager_html(
     <div class="top">
       <div>
         <h1 style="margin:0;">PageSpeed — Latest</h1>
-        <div class="meta"><b>Date:</b> {today} · <b>URL:</b> <a href="{url}">{url}</a></div>
+        <div class="meta"><b>Run:</b> {run_label} · <b>URL:</b> <a href="{url}">{url}</a></div>
       </div>
       <div class="pill">KPI focus: Performance (Mobile & Desktop)</div>
     </div>
@@ -410,7 +425,7 @@ def build_manager_html(
     </div>
 
     <div class="chart">
-      <h2>7-day trend (Performance)</h2>
+      <h2>3-day trend (5-minute runs, Performance)</h2>
       {chart_svg}
     </div>
 
@@ -443,7 +458,7 @@ def build_manager_html(
 </body>
 </html>
 """.format(
-        today=today,
+        run_label=run_label,
         url=URL,
         kpi_m=perf_kpi("Mobile Performance", now_m, prev_m),
         kpi_d=perf_kpi("Desktop Performance", now_d, prev_d),
@@ -462,8 +477,12 @@ def build_manager_html(
 # =========================
 
 def main():
-    today = dt.datetime.utcnow().strftime("%Y-%m-%d")
     os.makedirs(OUT_DIR, exist_ok=True)
+
+    # local time label
+    now = dt.datetime.now().astimezone()
+    run_label = now.strftime("%Y-%m-%d %H:%M %z")
+    ts_file = now.strftime("%Y-%m-%dT%H%M")  # for filenames
 
     latest_json = os.path.join(OUT_DIR, "latest.json")
     prev_snapshot = safe_read_json(latest_json)
@@ -474,7 +493,9 @@ def main():
     desktop_raw = fetch("desktop")
 
     snapshot = {
-        "date": today,
+        "date": now.strftime("%Y-%m-%d"),
+        "time": now.strftime("%H:%M"),
+        "timestamp": now.isoformat(timespec="minutes"),
         "url": URL,
         "mobile": {
             "scores": {c: lh_score(mobile_raw, c) for c in CATEGORIES},
@@ -486,24 +507,27 @@ def main():
         },
     }
 
-    # Save raw PSI JSON (optional)
-    write_json(os.path.join(OUT_DIR, "psi-mobile-{}.json".format(today)), mobile_raw)
-    write_json(os.path.join(OUT_DIR, "psi-desktop-{}.json".format(today)), desktop_raw)
+    # Save raw PSI JSON
+    write_json(os.path.join(OUT_DIR, "psi-mobile-{}.json".format(ts_file)), mobile_raw)
+    write_json(os.path.join(OUT_DIR, "psi-desktop-{}.json".format(ts_file)), desktop_raw)
 
     # Save snapshot history + latest pointer
-    write_json(os.path.join(OUT_DIR, "snapshot-{}.json".format(today)), snapshot)
+    write_json(os.path.join(OUT_DIR, "snapshot-{}.json".format(ts_file)), snapshot)
     write_json(latest_json, snapshot)
 
-    # 7-day history from snapshots (including today)
-    history = list_last_snapshots(OUT_DIR, CHART_DAYS)
+    # cleanup to keep only 3 days (864 points)
+    cleanup_old_snapshots(OUT_DIR, CHART_POINTS)
 
-    html = build_manager_html(today, snapshot, prev_snapshot, history)
+    # history for chart (last 3 days / points)
+    history = list_last_snapshots(OUT_DIR, CHART_POINTS)
+
+    html = build_manager_html(run_label, snapshot, prev_snapshot, history)
 
     latest_html = os.path.join(OUT_DIR, "latest.html")
     with open(latest_html, "w", encoding="utf-8") as f:
         f.write(html)
 
-    dated_html = os.path.join(OUT_DIR, "report-{}.html".format(today))
+    dated_html = os.path.join(OUT_DIR, "report-{}.html".format(ts_file))
     with open(dated_html, "w", encoding="utf-8") as f:
         f.write(html)
 
