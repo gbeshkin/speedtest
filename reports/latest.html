@@ -1,0 +1,202 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>PageSpeed — Latest</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, Roboto, Arial; margin: 26px; }
+    .meta { color:#555; margin-top: 6px; }
+    .wrap { max-width: 980px; }
+    .top { display:flex; justify-content:space-between; align-items:flex-end; gap: 16px; flex-wrap: wrap; }
+    .pill { padding: 6px 10px; border-radius: 999px; background:#f2f2f2; font-size: 12px; }
+    .kpi-row { display:flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 8px; }
+    .kpi { border:1px solid #e8e8e8; border-radius:16px; padding:12px 14px; min-width: 220px; flex: 1; }
+    .kpi-title { color:#666; font-size: 12px; }
+    .kpi-value { font-size: 42px; font-weight: 800; line-height: 1.0; margin-top: 6px; }
+    .kpi-delta { margin-top: 6px; color:#444; }
+    h2 { margin: 18px 0 10px; }
+    .grid { display:flex; gap:12px; flex-wrap:wrap; }
+    .card { border:1px solid #e8e8e8; border-radius:16px; padding:12px 14px; min-width: 210px; }
+    .card.good { border-color:#cfe9d7; }
+    .card.ok { border-color:#efe3bf; }
+    .card.bad { border-color:#f0c7c7; }
+    .k { color:#666; font-size: 12px; }
+    .v { font-size: 34px; font-weight: 800; margin-top: 4px; }
+    .d { margin-top: 6px; color:#444; }
+    .two { display:grid; grid-template-columns: 1fr; gap: 12px; }
+    @media (min-width: 900px) {
+      .two { grid-template-columns: 1fr 1fr; }
+    }
+    details { margin: 18px 0; }
+    pre { background:#f6f6f6; padding:12px; border-radius:12px; overflow:auto; }
+    a { color: inherit; }
+
+    /* chart */
+    .chart { margin-top: 18px; }
+    .legend { display:flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 8px; color:#444; }
+    .leg { display:flex; align-items:center; gap:8px; }
+    .sw { display:inline-block; width:14px; height:4px; border-radius:999px; }
+    .sw-m { background:#111; }
+    .sw-d { background:#111; opacity:.55; }
+    .delta { color:#555; }
+    .svg-bg { fill:#fafafa; stroke:#e8e8e8; }
+    .svg-grid { stroke:#e9e9e9; stroke-width:1; }
+    .svg-axis { stroke:#d7d7d7; stroke-width:1.2; }
+    .svg-line-m { fill:none; stroke:#111; stroke-width:2.2; }
+    .svg-line-d { fill:none; stroke:#111; stroke-opacity:.55; stroke-width:2.2; stroke-dasharray:6 5; }
+    .svg-pts-m circle { fill:#111; }
+    .svg-pts-d circle { fill:#111; fill-opacity:.55; }
+    .svg-x { font-size:11px; fill:#666; }
+    .svg-y { font-size:11px; fill:#666; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="top">
+      <div>
+        <h1 style="margin:0;">PageSpeed — Latest</h1>
+        <div class="meta"><b>Date:</b> 2026-03-01 · <b>URL:</b> <a href="https://www.kuehne-nagel.com/">https://www.kuehne-nagel.com/</a></div>
+      </div>
+      <div class="pill">KPI focus: Performance (Mobile & Desktop)</div>
+    </div>
+
+    <div class="kpi-row">
+      
+          <div class="kpi">
+            <div class="kpi-title">Mobile Performance</div>
+            <div class="kpi-value">48</div>
+            <div class="kpi-delta">—</div>
+          </div>
+        
+      
+          <div class="kpi">
+            <div class="kpi-title">Desktop Performance</div>
+            <div class="kpi-value">58</div>
+            <div class="kpi-delta">—</div>
+          </div>
+        
+    </div>
+
+    <div class="chart">
+      <h2>7-day trend (Performance)</h2>
+      
+      <div class="legend">
+        <span class="leg"><span class="sw sw-m"></span> Mobile: <b>48</b> <span class="delta">—</span></span>
+        <span class="leg"><span class="sw sw-d"></span> Desktop: <b>58</b> <span class="delta">—</span></span>
+      </div>
+    
+<svg width="920" height="220" viewBox="0 0 920 220" role="img" aria-label="7-day Performance trend">
+  <rect x="0" y="0" width="920" height="220" rx="16" class="svg-bg"/>
+  <line x1='44' y1='182.00' x2='904' y2='182.00' class='svg-grid'/><text x='36' y='186.00' text-anchor='end' class='svg-y'>43</text><line x1='44' y1='100.00' x2='904' y2='100.00' class='svg-grid'/><text x='36' y='104.00' text-anchor='end' class='svg-y'>53</text><line x1='44' y1='18.00' x2='904' y2='18.00' class='svg-grid'/><text x='36' y='22.00' text-anchor='end' class='svg-y'>63</text>
+  <line x1="44" y1="18" x2="44" y2="182" class="svg-axis"/>
+  <line x1="44" y1="182" x2="904" y2="182" class="svg-axis"/>
+
+  <path d="M 474.00,141.00" class="svg-line-m"/>
+  <g class="svg-pts-m"><circle class='ptm' cx='474.00' cy='141.00' r='3.3'/></g>
+
+  <path d="M 474.00,59.00" class="svg-line-d"/>
+  <g class="svg-pts-d"><circle class='ptd' cx='474.00' cy='59.00' r='3.3'/></g>
+
+  <text x='474.00' y='204' text-anchor='middle' class='svg-x'>03-01</text>
+</svg>
+
+    </div>
+
+    <div class="two">
+      <div>
+        
+          <h2>Mobile scores</h2>
+          <div class="grid">
+            
+              <div class="card bad">
+                <div class="k">Performance</div>
+                <div class="v">48</div>
+                <div class="d">—</div>
+              </div>
+            
+              <div class="card ok">
+                <div class="k">Accessibility</div>
+                <div class="v">86</div>
+                <div class="d">—</div>
+              </div>
+            
+              <div class="card good">
+                <div class="k">Best Practices</div>
+                <div class="v">96</div>
+                <div class="d">—</div>
+              </div>
+            
+              <div class="card ok">
+                <div class="k">Seo</div>
+                <div class="v">85</div>
+                <div class="d">—</div>
+              </div>
+            
+          </div>
+        
+      </div>
+      <div>
+        
+          <h2>Desktop scores</h2>
+          <div class="grid">
+            
+              <div class="card bad">
+                <div class="k">Performance</div>
+                <div class="v">58</div>
+                <div class="d">—</div>
+              </div>
+            
+              <div class="card good">
+                <div class="k">Accessibility</div>
+                <div class="v">90</div>
+                <div class="d">—</div>
+              </div>
+            
+              <div class="card good">
+                <div class="k">Best Practices</div>
+                <div class="v">96</div>
+                <div class="d">—</div>
+              </div>
+            
+              <div class="card ok">
+                <div class="k">Seo</div>
+                <div class="v">85</div>
+                <div class="d">—</div>
+              </div>
+            
+          </div>
+        
+      </div>
+    </div>
+
+    <details>
+      <summary><b>Core Web Vitals (Mobile / Desktop)</b></summary>
+      <h3>Mobile</h3>
+      <pre>{
+  "LCP": "6.0 s",
+  "INP": null,
+  "CLS": "0.017",
+  "FCP": "4.5 s",
+  "TTFB": "Root document took 20 ms"
+}</pre>
+      <h3>Desktop</h3>
+      <pre>{
+  "LCP": "1.3 s",
+  "INP": null,
+  "CLS": "0.028",
+  "FCP": "0.8 s",
+  "TTFB": "Root document took 20 ms"
+}</pre>
+    </details>
+
+    <details>
+      <summary><b>How to read</b></summary>
+      <ul>
+        <li><b>▲/▼</b> shows delta vs previous run.</li>
+        <li>Status borders: <b>good ≥ 90</b>, <b>ok ≥ 70</b>, <b>bad &lt; 70</b>.</li>
+      </ul>
+    </details>
+
+  </div>
+</body>
+</html>

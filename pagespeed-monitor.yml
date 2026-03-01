@@ -1,0 +1,51 @@
+name: PageSpeed Monitor
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: "0 * * * *"
+
+concurrency:
+  group: pagespeed-monitor
+  cancel-in-progress: true
+
+jobs:
+  pagespeed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install deps
+        run: pip install --no-cache-dir requests
+
+      - name: Run monitor
+        env:
+          PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
+        run: |
+          python tools/pagespeed/pagespeed.py
+          ls -la reports
+
+      - name: Publish report to docs/
+        run: |
+          mkdir -p docs/pagespeed
+          cp -f reports/latest.html docs/pagespeed/index.html
+          cp -f reports/latest.html docs/pagespeed/latest.html
+          # (опционально) архивы тоже:
+          cp -f reports/report-*.html docs/pagespeed/ 2>/dev/null || true
+          cp -f reports/snapshot-*.json docs/pagespeed/ 2>/dev/null || true
+
+      - name: Commit and push report
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add docs/pagespeed
+          git commit -m "chore(pagespeed): update report" || exit 0
+          git push
