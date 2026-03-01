@@ -1,11 +1,11 @@
 {
   "date": "2026-03-01",
-  "time": "20:50",
-  "timestamp": "2026-03-01T20:50+00:00",
+  "time": "21:22",
+  "timestamp": "2026-03-01T21:22+00:00",
   "url": "https://www.kuehne-nagel.com/",
   "mobile": {
     "scores": {
-      "performance": 44,
+      "performance": 50,
       "accessibility": 86,
       "best-practices": 96,
       "seo": 85
@@ -15,12 +15,12 @@
       "INP": null,
       "CLS": "0.017",
       "FCP": "4.5 s",
-      "TTFB": "Root document took 20 ms"
+      "TTFB": "Root document took 10 ms"
     }
   },
   "desktop": {
     "scores": {
-      "performance": 67,
+      "performance": 66,
       "accessibility": 90,
       "best-practices": 96,
       "seo": 85
@@ -28,9 +28,9 @@
     "cwv": {
       "LCP": "1.2 s",
       "INP": null,
-      "CLS": "0.028",
+      "CLS": "0.03",
       "FCP": "0.8 s",
-      "TTFB": "Root document took 20 ms"
+      "TTFB": "Root document took 10 ms"
     }
   }
 }
