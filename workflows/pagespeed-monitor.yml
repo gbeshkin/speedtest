@@ -12,37 +12,58 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
-
     permissions:
       contents: write
 
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Debug repo layout
+        run: |
+          echo "PWD:"
+          pwd
+          echo "ROOT FILES:"
+          ls -la
+          echo "TREE (2 levels):"
+          find . -maxdepth 2 -type f -print
+
+      - name: Ensure pagespeed.py exists
+        run: |
+          test -f pagespeed.py
+          echo "pagespeed.py found ✅"
+          python -c "import sys; print('python ok', sys.version)"
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: pip install --no-cache-dir requests
+      - name: Install deps
+        run: |
+          python --version
+          pip install --no-cache-dir requests
 
       - name: Run PageSpeed script
         env:
           PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
         run: |
+          set -e
+          echo "RUNNING pagespeed.py..."
           python pagespeed.py
-          echo "=== reports folder ==="
-          ls -la reports
+          echo "DONE. reports:"
+          ls -la reports || true
+          test -f reports/latest.html
+          echo "reports/latest.html exists ✅"
+          du -h reports/latest.html || true
 
-      - name: Publish report to Pages
+      - name: Publish to Pages (/docs)
         run: |
           mkdir -p docs
           cp reports/latest.html docs/index.html
           cp reports/latest.html docs/latest.html
           touch docs/.nojekyll
-          echo "=== docs folder ==="
+          echo "docs:"
           ls -la docs
 
       - name: Commit & push if changed
@@ -50,5 +71,5 @@ jobs:
           git config user.name "github-actions"
           git config user.email "actions@github.com"
           git add docs
-          git diff --quiet && git diff --staged --quiet || git commit -m "auto: update pagespeed report"
+          git diff --staged --quiet || git commit -m "auto: update pagespeed report"
           git push
