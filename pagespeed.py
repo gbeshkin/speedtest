@@ -13,7 +13,7 @@ from requests.exceptions import ReadTimeout, ConnectionError, Timeout
 # =========================
 
 URL = "https://www.kuehne-nagel.com/"
-API_KEY = os.environ.get("PSI_API_KEY", "")  # export PSI_API_KEY="..."
+API_KEY = os.environ.get("PSI_API_KEY", "")  # GitHub Secret PSI_API_KEY
 
 API = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
 OUT_DIR = "reports"
@@ -23,20 +23,22 @@ CATEGORIES = ["performance", "accessibility", "best-practices", "seo"]
 GOOD = 90
 OK = 70
 
-# We run every 5 minutes and want 3 days of history:
+# Runs every 5 minutes, keep 3 days of chart history:
 # 3 days = 72 hours, 12 points/hour => 864 points
 CHART_POINTS = 864
 
-# chart settings
+# chart settings (SVG)
 CHART_W = 920
-CHART_H = 240
+CHART_H = 250
 CHART_PAD_L = 44
 CHART_PAD_R = 16
 CHART_PAD_T = 18
-CHART_PAD_B = 48
+CHART_PAD_B = 52
+
+# dots: show 1 per hour + last point (12 points/hour if every 5 min)
+DOT_STEP = 12
 
 SESSION = requests.Session()
-
 
 # =========================
 # PSI REQUEST
@@ -65,7 +67,6 @@ def fetch(strategy: str, max_attempts: int = 7) -> Dict[str, Any]:
                 time.sleep(wait)
                 continue
 
-            # Other HTTP errors: show details and fail
             try:
                 details = r.json()
             except Exception:
@@ -142,34 +143,41 @@ def write_json(path: str, obj: Dict[str, Any]) -> None:
         json.dump(obj, f, ensure_ascii=False, indent=2)
 
 
-def list_last_snapshots(out_dir: str, points: int) -> List[Dict[str, Any]]:
+def snapshot_sort_key(filename: str) -> str:
     """
-    Reads snapshot-YYYY-MM-DDTHHMM.json, sorts by timestamp in name, returns last N.
+    Supports both:
+      snapshot-YYYY-MM-DD.json
+      snapshot-YYYY-MM-DDTHHMM.json
+    Lexicographic sort works for both formats.
     """
-    items: List[Tuple[str, str]] = []
-    for name in os.listdir(out_dir):
-        if name.startswith("snapshot-") and name.endswith(".json"):
-            ts_part = name[len("snapshot-"):-len(".json")]
-            items.append((ts_part, os.path.join(out_dir, name)))
+    core = filename[len("snapshot-"):-len(".json")]
+    return core
 
-    items.sort(key=lambda x: x[0])  # YYYY-MM-DDTHHMM
-    items = items[-points:]
+
+def list_last_snapshots(out_dir: str, points: int) -> Tuple[List[Dict[str, Any]], List[str]]:
+    """
+    Reads snapshot-*.json (both daily and timestamped formats),
+    sorts by name, returns last N snapshots + last few filenames for debugging.
+    """
+    names = [n for n in os.listdir(out_dir) if n.startswith("snapshot-") and n.endswith(".json")]
+    names.sort(key=snapshot_sort_key)
+
+    tail_names = names[-10:]  # for debug display
+    names = names[-points:]
 
     snapshots: List[Dict[str, Any]] = []
-    for _, path in items:
-        obj = safe_read_json(path)
+    for name in names:
+        obj = safe_read_json(os.path.join(out_dir, name))
         if obj and isinstance(obj, dict):
             snapshots.append(obj)
-    return snapshots
+
+    return snapshots, tail_names
 
 
 def cleanup_old_snapshots(out_dir: str, keep: int) -> None:
-    """
-    Keeps only the newest `keep` snapshots (by filename sort), deletes older ones.
-    """
-    files = [n for n in os.listdir(out_dir) if n.startswith("snapshot-") and n.endswith(".json")]
-    files.sort()  # oldest -> newest due to timestamp naming
-    to_delete = files[:-keep] if len(files) > keep else []
+    names = [n for n in os.listdir(out_dir) if n.startswith("snapshot-") and n.endswith(".json")]
+    names.sort(key=snapshot_sort_key)
+    to_delete = names[:-keep] if len(names) > keep else []
     for name in to_delete:
         try:
             os.remove(os.path.join(out_dir, name))
@@ -186,30 +194,37 @@ def svg_escape(s: str) -> str:
 
 
 # =========================
-# SVG CHART (3 DAYS, 5 MIN)
+# SVG CHART (3 DAYS)
 # =========================
 
-def build_perf_svg(history: List[Dict[str, Any]]) -> str:
+def build_perf_svg(history: List[Dict[str, Any]], debug_names: List[str]) -> str:
     if not history:
-        return "<div class='meta'>No history yet (need at least 1 snapshot).</div>"
+        return (
+            "<div class='meta'>No chart data yet: 0 snapshots found. "
+            "Expected files like <code>reports/snapshot-YYYY-MM-DDTHHMM.json</code>.</div>"
+            "<div class='meta'>Last snapshot filenames: <code>{}</code></div>".format(
+                svg_escape(", ".join(debug_names) if debug_names else "(none)")
+            )
+        )
 
     labels: List[str] = []
     mob: List[int] = []
     desk: List[int] = []
 
     for s in history:
-        # X label = HH:MM
-        if "time" in s and s.get("time"):
-            labels.append(str(s.get("time")))
-        elif "timestamp" in s and s.get("timestamp"):
-            labels.append(str(s.get("timestamp"))[11:16])
+        # X label = HH:MM preferred
+        if s.get("time"):
+            labels.append(str(s["time"]))
+        elif s.get("timestamp"):
+            labels.append(str(s["timestamp"])[11:16])
         else:
-            labels.append(str(s.get("date", ""))[5:])
+            labels.append(str(s.get("date", ""))[5:] or "?")
 
         mob.append(int(s["mobile"]["scores"]["performance"]))
         desk.append(int(s["desktop"]["scores"]["performance"]))
 
     n = len(labels)
+
     minv = max(0, min(min(mob), min(desk)) - 5)
     maxv = min(100, max(max(mob), max(desk)) + 5)
     if maxv - minv < 10:
@@ -234,7 +249,7 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
         pts = ["{:.2f},{:.2f}".format(x(i), y(v)) for i, v in enumerate(series)]
         return "M " + " L ".join(pts) if pts else ""
 
-    # ticks: min / mid / max
+    # y ticks: min / mid / max
     ticks = [minv, int((minv + maxv) / 2), maxv]
 
     ygrid = []
@@ -247,18 +262,37 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
             x=CHART_PAD_L - 8, y=yy + 4, tv=tv
         ))
 
-    # x labels: show every 2 hours to avoid clutter
-    # 5-minute points => 12 points/hour => 24 points per 2 hours
-    step = 24
+    # x labels: show every 2 hours to avoid clutter (2h = 24 points)
+    # if less points, show more frequently
+    if n <= 60:
+        step = 6   # every 30 min
+    elif n <= 200:
+        step = 12  # every 1 hour
+    else:
+        step = 24  # every 2 hours
+
     xlabels = []
     for i, lab in enumerate(labels):
         if (i % step != 0) and (i != n - 1):
             continue
         xlabels.append("<text x='{:.2f}' y='{}' text-anchor='middle' class='svg-x'>{}</text>".format(
-            x(i), CHART_PAD_T + plot_h + 28, svg_escape(lab)
+            x(i), CHART_PAD_T + plot_h + 30, svg_escape(lab)
         ))
 
-    # last deltas vs previous point
+    # dots: hourly + last (so you SEE points)
+    def dots(series: List[int], cls: str) -> str:
+        out = []
+        last_i = len(series) - 1
+        for i, v in enumerate(series):
+            if (i % DOT_STEP != 0) and (i != last_i):
+                continue
+            out.append("<circle cx='{:.2f}' cy='{:.2f}' r='2.6' class='{}'/>".format(x(i), y(v), cls))
+        return "".join(out)
+
+    mob_dots = dots(mob, "svg-dot-m")
+    desk_dots = dots(desk, "svg-dot-d")
+
+    # deltas vs previous point
     last_m = mob[-1]
     last_d = desk[-1]
     prev_m = mob[-2] if len(mob) >= 2 else None
@@ -273,7 +307,6 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
       </div>
     """.format(m=last_m, d=last_d, dm=arrow(dm), dd=arrow(dd))
 
-    # points: keep lightweight for many points (no circles for 864 pts)
     svg = """{legend}
 <svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" aria-label="3-day Performance trend (5-min runs)">
   <rect x="0" y="0" width="{w}" height="{h}" rx="16" class="svg-bg"/>
@@ -283,6 +316,9 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
 
   <path d="{mp}" class="svg-line-m"/>
   <path d="{dp}" class="svg-line-d"/>
+
+  {mob_dots}
+  {desk_dots}
 
   {xlabels}
 </svg>
@@ -297,6 +333,8 @@ def build_perf_svg(history: List[Dict[str, Any]]) -> str:
         b=CHART_PAD_T + plot_h,
         mp=path(mob),
         dp=path(desk),
+        mob_dots=mob_dots,
+        desk_dots=desk_dots,
         xlabels="".join(xlabels),
     )
     return svg
@@ -310,7 +348,8 @@ def build_manager_html(
     run_label: str,
     snapshot: Dict[str, Any],
     prev_snapshot: Optional[Dict[str, Any]],
-    history: List[Dict[str, Any]]
+    history: List[Dict[str, Any]],
+    debug_names: List[str]
 ) -> str:
     now_m = snapshot["mobile"]["scores"]
     now_d = snapshot["desktop"]["scores"]
@@ -357,7 +396,7 @@ def build_manager_html(
           </div>
         """.format(title=title, cards="".join(cards))
 
-    chart_svg = build_perf_svg(history)
+    chart_svg = build_perf_svg(history, debug_names)
 
     return """<!doctype html>
 <html>
@@ -400,11 +439,14 @@ def build_manager_html(
     .sw-m {{ background:#111; }}
     .sw-d {{ background:#111; opacity:.55; }}
     .delta {{ color:#555; }}
+
     .svg-bg {{ fill:#fafafa; stroke:#e8e8e8; }}
     .svg-grid {{ stroke:#e9e9e9; stroke-width:1; }}
     .svg-axis {{ stroke:#d7d7d7; stroke-width:1.2; }}
-    .svg-line-m {{ fill:none; stroke:#111; stroke-width:2.2; }}
-    .svg-line-d {{ fill:none; stroke:#111; stroke-opacity:.55; stroke-width:2.2; stroke-dasharray:6 5; }}
+    .svg-line-m {{ fill:none; stroke:#111; stroke-width:2.4; }}
+    .svg-line-d {{ fill:none; stroke:#111; stroke-opacity:.55; stroke-width:2.4; stroke-dasharray:6 5; }}
+    .svg-dot-m {{ fill:#111; }}
+    .svg-dot-d {{ fill:#111; opacity:.55; }}
     .svg-x {{ font-size:11px; fill:#666; }}
     .svg-y {{ font-size:11px; fill:#666; }}
   </style>
@@ -415,6 +457,7 @@ def build_manager_html(
       <div>
         <h1 style="margin:0;">PageSpeed — Latest</h1>
         <div class="meta"><b>Run:</b> {run_label} · <b>URL:</b> <a href="{url}">{url}</a></div>
+        <div class="meta"><b>Snapshots used for chart:</b> {n_hist} (showing last {max_pts})</div>
       </div>
       <div class="pill">KPI focus: Performance (Mobile & Desktop)</div>
     </div>
@@ -446,20 +489,14 @@ def build_manager_html(
       <pre>{cwv_d}</pre>
     </details>
 
-    <details>
-      <summary><b>How to read</b></summary>
-      <ul>
-        <li><b>▲/▼</b> shows delta vs previous run.</li>
-        <li>Status borders: <b>good ≥ {good}</b>, <b>ok ≥ {ok}</b>, <b>bad &lt; {ok}</b>.</li>
-      </ul>
-    </details>
-
   </div>
 </body>
 </html>
 """.format(
         run_label=run_label,
         url=URL,
+        n_hist=len(history),
+        max_pts=CHART_POINTS,
         kpi_m=perf_kpi("Mobile Performance", now_m, prev_m),
         kpi_d=perf_kpi("Desktop Performance", now_d, prev_d),
         chart_svg=chart_svg,
@@ -467,8 +504,6 @@ def build_manager_html(
         desktop_grid=score_grid("Desktop scores", now_d, prev_d),
         cwv_m=json.dumps(snapshot["mobile"]["cwv"], indent=2, ensure_ascii=False),
         cwv_d=json.dumps(snapshot["desktop"]["cwv"], indent=2, ensure_ascii=False),
-        good=GOOD,
-        ok=OK,
     )
 
 
@@ -479,10 +514,9 @@ def build_manager_html(
 def main():
     os.makedirs(OUT_DIR, exist_ok=True)
 
-    # local time label
     now = dt.datetime.now().astimezone()
     run_label = now.strftime("%Y-%m-%d %H:%M %z")
-    ts_file = now.strftime("%Y-%m-%dT%H%M")  # for filenames
+    ts_file = now.strftime("%Y-%m-%dT%H%M")  # safe filename, no ':'
 
     latest_json = os.path.join(OUT_DIR, "latest.json")
     prev_snapshot = safe_read_json(latest_json)
@@ -519,9 +553,9 @@ def main():
     cleanup_old_snapshots(OUT_DIR, CHART_POINTS)
 
     # history for chart (last 3 days / points)
-    history = list_last_snapshots(OUT_DIR, CHART_POINTS)
+    history, debug_names = list_last_snapshots(OUT_DIR, CHART_POINTS)
 
-    html = build_manager_html(run_label, snapshot, prev_snapshot, history)
+    html = build_manager_html(run_label, snapshot, prev_snapshot, history, debug_names)
 
     latest_html = os.path.join(OUT_DIR, "latest.html")
     with open(latest_html, "w", encoding="utf-8") as f:
@@ -534,6 +568,9 @@ def main():
     print("✅ Done.")
     print("Latest report:", latest_html)
     print("Archive report:", dated_html)
+    print("Snapshots found for chart:", len(history))
+    if debug_names:
+        print("Last snapshot files:", ", ".join(debug_names))
 
 
 if __name__ == "__main__":
