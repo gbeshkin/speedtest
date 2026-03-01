@@ -12,61 +12,68 @@ concurrency:
 jobs:
   monitor:
     runs-on: ubuntu-latest
+
     permissions:
       contents: write
 
     steps:
-      - name: Checkout
+      # 1️⃣ скачать репозиторий
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Debug repo layout
+      # 2️⃣ показать структуру (диагностика)
+      - name: Debug repository structure
         run: |
-          echo "PWD:"
-          pwd
-          echo "ROOT FILES:"
+          echo "ROOT:"
           ls -la
-          echo "TREE (2 levels):"
-          find . -maxdepth 2 -type f -print
+          echo "TREE:"
+          find . -maxdepth 2 -type f
 
+      # 3️⃣ проверить наличие скрипта
       - name: Ensure pagespeed.py exists
         run: |
           test -f pagespeed.py
           echo "pagespeed.py found ✅"
-          python -c "import sys; print('python ok', sys.version)"
 
+      # 4️⃣ установить Python
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Install deps
+      # 5️⃣ установить зависимости
+      - name: Install dependencies
         run: |
           python --version
           pip install --no-cache-dir requests
 
+      # 6️⃣ запустить мониторинг
       - name: Run PageSpeed script
         env:
           PSI_API_KEY: ${{ secrets.PSI_API_KEY }}
         run: |
-          set -e
-          echo "RUNNING pagespeed.py..."
+          echo "Running pagespeed.py..."
           python pagespeed.py
-          echo "DONE. reports:"
-          ls -la reports || true
-          test -f reports/latest.html
-          echo "reports/latest.html exists ✅"
-          du -h reports/latest.html || true
 
-      - name: Publish to Pages (/docs)
+          echo "Reports folder:"
+          ls -la reports || true
+
+          test -f reports/latest.html
+          echo "latest.html created ✅"
+
+      # 7️⃣ подготовить GitHub Pages
+      - name: Publish report to Pages
         run: |
           mkdir -p docs
           cp reports/latest.html docs/index.html
           cp reports/latest.html docs/latest.html
           touch docs/.nojekyll
-          echo "docs:"
+
+          echo "Docs folder:"
           ls -la docs
 
-      - name: Commit & push if changed
+      # 8️⃣ закоммитить обновления
+      - name: Commit & push
         run: |
           git config user.name "github-actions"
           git config user.email "actions@github.com"
