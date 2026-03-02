@@ -12,7 +12,7 @@ from requests.exceptions import ReadTimeout, ConnectionError, Timeout
 # CONFIG
 # =========================
 
-URL = "https://www.kuehne-nagel.com/"
+URL = "https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/"
 API_KEY = os.environ.get("PSI_API_KEY", "")  # GitHub Secret PSI_API_KEY
 
 API = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
