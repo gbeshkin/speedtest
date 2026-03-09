@@ -1,196 +1,68 @@
 <!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>PageSpeed — Latest</title>
+  <meta charset="utf-8">
+  <title>PageSpeed — Performance</title>
   <style>
     body { font-family: -apple-system, Segoe UI, Roboto, Arial; margin: 26px; }
-    .meta { color:#555; margin-top: 6px; }
-    .wrap { max-width: 980px; }
-    .top { display:flex; justify-content:space-between; align-items:flex-end; gap: 16px; flex-wrap: wrap; }
-    .pill { padding: 6px 10px; border-radius: 999px; background:#f2f2f2; font-size: 12px; }
-    .kpi-row { display:flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 8px; }
-    .kpi { border:1px solid #e8e8e8; border-radius:16px; padding:12px 14px; min-width: 220px; flex: 1; }
-    .kpi-title { color:#666; font-size: 12px; }
-    .kpi-value { font-size: 42px; font-weight: 800; line-height: 1.0; margin-top: 6px; }
-    .kpi-delta { margin-top: 6px; color:#444; }
-    h2 { margin: 18px 0 10px; }
-    .grid { display:flex; gap:12px; flex-wrap:wrap; }
-    .card { border:1px solid #e8e8e8; border-radius:16px; padding:12px 14px; min-width: 210px; }
-    .card.good { border-color:#cfe9d7; }
-    .card.ok { border-color:#efe3bf; }
-    .card.bad { border-color:#f0c7c7; }
-    .k { color:#666; font-size: 12px; }
-    .v { font-size: 34px; font-weight: 800; margin-top: 4px; }
-    .d { margin-top: 6px; color:#444; }
-    .two { display:grid; grid-template-columns: 1fr; gap: 12px; }
-    @media (min-width: 900px) {
-      .two { grid-template-columns: 1fr 1fr; }
-    }
-    details { margin: 18px 0; }
-    pre { background:#f6f6f6; padding:12px; border-radius:12px; overflow:auto; }
-    a { color: inherit; }
+    .meta { color:#555; margin-top:6px; }
+    .row { display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }
+    .card { border:1px solid #eee; border-radius:16px; padding:14px; min-width:280px; flex:1; }
+    .k { color:#666; font-size:12px; word-break:break-all; }
+    .v { font-size:28px; font-weight:800; margin-top:8px; }
+    .small { color:#666; font-size:13px; margin-top:8px; }
+    .err { color:#b00020; font-weight:700; margin-top:8px; }
 
-    /* chart */
-    .chart { margin-top: 18px; }
-    .legend { display:flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 8px; color:#444; }
-    .leg { display:flex; align-items:center; gap:8px; }
+    .chart { margin-top:26px; }
+    .legend { display:flex; flex-direction:column; gap:6px; margin:10px 0 8px; color:#444; }
+    .legend-row { display:flex; gap:10px; align-items:center; flex-wrap:wrap; }
     .sw { display:inline-block; width:14px; height:4px; border-radius:999px; }
-    .sw-m { background:#111; }
-    .sw-d { background:#111; opacity:.55; }
-    .delta { color:#555; }
-
     .svg-bg { fill:#fafafa; stroke:#e8e8e8; }
     .svg-grid { stroke:#e9e9e9; stroke-width:1; }
     .svg-axis { stroke:#d7d7d7; stroke-width:1.2; }
-    .svg-line-m { fill:none; stroke:#111; stroke-width:2.4; }
-    .svg-line-d { fill:none; stroke:#111; stroke-opacity:.55; stroke-width:2.4; stroke-dasharray:6 5; }
-    .svg-dot-m { fill:#111; }
-    .svg-dot-d { fill:#111; opacity:.55; }
+    .svg-line { fill:none; stroke-width:2.2; }
+    .svg-line.dashed { stroke-dasharray:6 5; opacity:.75; }
+    .svg-dot { opacity:.9; }
     .svg-x { font-size:11px; fill:#666; }
     .svg-y { font-size:11px; fill:#666; }
+
+    .s1 { stroke:#111; fill:#111; background:#111; }
+    .s1d { stroke:#111; fill:#111; background:#111; opacity:.55; }
+    .s2 { stroke:#2563eb; fill:#2563eb; background:#2563eb; }
+    .s2d { stroke:#2563eb; fill:#2563eb; background:#2563eb; opacity:.55; }
+    .s3 { stroke:#059669; fill:#059669; background:#059669; }
+    .s3d { stroke:#059669; fill:#059669; background:#059669; opacity:.55; }
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <h1 style="margin:0;">PageSpeed — Latest</h1>
-        <div class="meta"><b>Run:</b> 2026-03-09 08:42 +0000 · <b>URL:</b> <a href="https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/">https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/</a></div>
-        <div class="meta"><b>Snapshots used for chart:</b> 274 (showing last 864)</div>
-      </div>
-      <div class="pill">KPI focus: Performance (Mobile & Desktop)</div>
-    </div>
+  <h1 style="margin:0;">PageSpeed — Performance (5 min)</h1>
+  <div class="meta"><b>Run:</b> 2026-03-09 09:07 +0000 · <b>URLs:</b> 3 · <b>History points:</b> 1</div>
 
-    <div class="kpi-row">
-      
-          <div class="kpi">
-            <div class="kpi-title">Mobile Performance</div>
-            <div class="kpi-value">75</div>
-            <div class="kpi-delta">▲ +6</div>
-          </div>
-        
-      
-          <div class="kpi">
-            <div class="kpi-title">Desktop Performance</div>
-            <div class="kpi-value">92</div>
-            <div class="kpi-delta">▼ -7</div>
-          </div>
-        
-    </div>
-
-    <div class="chart">
-      <h2>3-day trend (5-minute runs, Performance)</h2>
-      
-      <div class="legend">
-        <span class="leg"><span class="sw sw-m"></span> Mobile: <b>75</b> <span class="delta">▲ +6</span></span>
-        <span class="leg"><span class="sw sw-d"></span> Desktop: <b>92</b> <span class="delta">▼ -7</span></span>
-      </div>
+  <div class="row">
     
-<svg width="920" height="250" viewBox="0 0 920 250" role="img" aria-label="3-day Performance trend (5-min runs)">
-  <rect x="0" y="0" width="920" height="250" rx="16" class="svg-bg"/>
-  <line x1='44' y1='198.00' x2='904' y2='198.00' class='svg-grid'/><text x='36' y='202.00' text-anchor='end' class='svg-y'>28</text><line x1='44' y1='108.00' x2='904' y2='108.00' class='svg-grid'/><text x='36' y='112.00' text-anchor='end' class='svg-y'>64</text><line x1='44' y1='18.00' x2='904' y2='18.00' class='svg-grid'/><text x='36' y='22.00' text-anchor='end' class='svg-y'>100</text>
-  <line x1="44" y1="18" x2="44" y2="198" class="svg-axis"/>
-  <line x1="44" y1="198" x2="904" y2="198" class="svg-axis"/>
-
-  <path d="M 44.00,173.00 L 47.15,135.50 L 50.30,158.00 L 53.45,158.00 L 56.60,143.00 L 59.75,138.00 L 62.90,128.00 L 66.05,170.50 L 69.20,125.50 L 72.35,168.00 L 75.50,173.00 L 78.65,133.00 L 81.80,148.00 L 84.95,165.50 L 88.10,138.00 L 91.25,143.00 L 94.40,140.50 L 97.55,128.00 L 100.70,155.50 L 103.85,140.50 L 107.00,130.50 L 110.15,135.50 L 113.30,143.00 L 116.45,138.00 L 119.60,148.00 L 122.75,133.00 L 125.90,143.00 L 129.05,123.00 L 132.21,130.50 L 135.36,143.00 L 138.51,135.50 L 141.66,135.50 L 144.81,118.00 L 147.96,120.50 L 151.11,120.50 L 154.26,185.50 L 157.41,135.50 L 160.56,128.00 L 163.71,115.50 L 166.86,133.00 L 170.01,163.00 L 173.16,135.50 L 176.31,125.50 L 179.46,155.50 L 182.61,125.50 L 185.76,150.50 L 188.91,118.00 L 192.06,130.50 L 195.21,150.50 L 198.36,113.00 L 201.51,130.50 L 204.66,145.50 L 207.81,100.50 L 210.96,113.00 L 214.11,125.50 L 217.26,133.00 L 220.41,145.50 L 223.56,145.50 L 226.71,170.50 L 229.86,148.00 L 233.01,135.50 L 236.16,133.00 L 239.31,123.00 L 242.46,110.50 L 245.61,143.00 L 248.76,138.00 L 251.91,133.00 L 255.06,118.00 L 258.21,145.50 L 261.36,118.00 L 264.51,113.00 L 267.66,120.50 L 270.81,140.50 L 273.96,148.00 L 277.11,128.00 L 280.26,120.50 L 283.41,140.50 L 286.56,123.00 L 289.71,130.50 L 292.86,130.50 L 296.01,105.50 L 299.16,128.00 L 302.32,123.00 L 305.47,133.00 L 308.62,155.50 L 311.77,128.00 L 314.92,128.00 L 318.07,83.00 L 321.22,100.50 L 324.37,88.00 L 327.52,95.50 L 330.67,90.50 L 333.82,80.50 L 336.97,115.50 L 340.12,103.00 L 343.27,93.00 L 346.42,113.00 L 349.57,90.50 L 352.72,120.50 L 355.87,95.50 L 359.02,90.50 L 362.17,95.50 L 365.32,88.00 L 368.47,108.00 L 371.62,120.50 L 374.77,98.00 L 377.92,93.00 L 381.07,73.00 L 384.22,115.50 L 387.37,105.50 L 390.52,100.50 L 393.67,93.00 L 396.82,93.00 L 399.97,98.00 L 403.12,88.00 L 406.27,153.00 L 409.42,83.00 L 412.57,73.00 L 415.72,88.00 L 418.87,78.00 L 422.02,75.50 L 425.17,60.50 L 428.32,75.50 L 431.47,88.00 L 434.62,68.00 L 437.77,88.00 L 440.92,85.50 L 444.07,60.50 L 447.22,83.00 L 450.37,75.50 L 453.52,75.50 L 456.67,75.50 L 459.82,75.50 L 462.97,75.50 L 466.12,90.50 L 469.27,95.50 L 472.42,83.00 L 475.58,90.50 L 478.73,73.00 L 481.88,100.50 L 485.03,100.50 L 488.18,95.50 L 491.33,95.50 L 494.48,60.50 L 497.63,73.00 L 500.78,73.00 L 503.93,60.50 L 507.08,98.00 L 510.23,75.50 L 513.38,90.50 L 516.53,85.50 L 519.68,75.50 L 522.83,73.00 L 525.98,75.50 L 529.13,78.00 L 532.28,75.50 L 535.43,73.00 L 538.58,85.50 L 541.73,130.50 L 544.88,75.50 L 548.03,103.00 L 551.18,60.50 L 554.33,90.50 L 557.48,73.00 L 560.63,75.50 L 563.78,75.50 L 566.93,75.50 L 570.08,73.00 L 573.23,73.00 L 576.38,73.00 L 579.53,73.00 L 582.68,75.50 L 585.83,78.00 L 588.98,75.50 L 592.13,75.50 L 595.28,60.50 L 598.43,60.50 L 601.58,73.00 L 604.73,75.50 L 607.88,75.50 L 611.03,60.50 L 614.18,100.50 L 617.33,73.00 L 620.48,78.00 L 623.63,78.00 L 626.78,73.00 L 629.93,80.50 L 633.08,78.00 L 636.23,60.50 L 639.38,85.50 L 642.53,70.50 L 645.68,73.00 L 648.84,75.50 L 651.99,90.50 L 655.14,83.00 L 658.29,75.50 L 661.44,75.50 L 664.59,73.00 L 667.74,75.50 L 670.89,75.50 L 674.04,75.50 L 677.19,85.50 L 680.34,73.00 L 683.49,75.50 L 686.64,73.00 L 689.79,110.50 L 692.94,73.00 L 696.09,75.50 L 699.24,75.50 L 702.39,88.00 L 705.54,78.00 L 708.69,75.50 L 711.84,80.50 L 714.99,75.50 L 718.14,78.00 L 721.29,78.00 L 724.44,75.50 L 727.59,90.50 L 730.74,75.50 L 733.89,73.00 L 737.04,73.00 L 740.19,75.50 L 743.34,75.50 L 746.49,90.50 L 749.64,73.00 L 752.79,78.00 L 755.94,73.00 L 759.09,70.50 L 762.24,75.50 L 765.39,75.50 L 768.54,75.50 L 771.69,85.50 L 774.84,85.50 L 777.99,75.50 L 781.14,73.00 L 784.29,75.50 L 787.44,75.50 L 790.59,75.50 L 793.74,68.00 L 796.89,60.50 L 800.04,85.50 L 803.19,75.50 L 806.34,73.00 L 809.49,78.00 L 812.64,73.00 L 815.79,75.50 L 818.95,80.50 L 822.10,115.50 L 825.25,75.50 L 828.40,85.50 L 831.55,75.50 L 834.70,83.00 L 837.85,75.50 L 841.00,73.00 L 844.15,80.50 L 847.30,73.00 L 850.45,73.00 L 853.60,80.50 L 856.75,83.00 L 859.90,80.50 L 863.05,75.50 L 866.20,60.50 L 869.35,83.00 L 872.50,75.50 L 875.65,75.50 L 878.80,88.00 L 881.95,75.50 L 885.10,80.50 L 888.25,88.00 L 891.40,75.50 L 894.55,78.00 L 897.70,80.50 L 900.85,95.50 L 904.00,80.50" class="svg-line-m"/>
-  <path d="M 44.00,103.00 L 47.15,105.50 L 50.30,118.00 L 53.45,100.50 L 56.60,103.00 L 59.75,118.00 L 62.90,98.00 L 66.05,68.00 L 69.20,80.50 L 72.35,93.00 L 75.50,115.50 L 78.65,120.50 L 81.80,108.00 L 84.95,85.50 L 88.10,55.50 L 91.25,118.00 L 94.40,78.00 L 97.55,110.50 L 100.70,35.50 L 103.85,100.50 L 107.00,115.50 L 110.15,123.00 L 113.30,105.50 L 116.45,98.00 L 119.60,88.00 L 122.75,100.50 L 125.90,80.50 L 129.05,100.50 L 132.21,40.50 L 135.36,43.00 L 138.51,105.50 L 141.66,63.00 L 144.81,50.50 L 147.96,93.00 L 151.11,113.00 L 154.26,85.50 L 157.41,70.50 L 160.56,50.50 L 163.71,80.50 L 166.86,108.00 L 170.01,45.50 L 173.16,48.00 L 176.31,40.50 L 179.46,103.00 L 182.61,108.00 L 185.76,78.00 L 188.91,65.50 L 192.06,110.50 L 195.21,100.50 L 198.36,65.50 L 201.51,88.00 L 204.66,103.00 L 207.81,115.50 L 210.96,65.50 L 214.11,103.00 L 217.26,98.00 L 220.41,80.50 L 223.56,105.50 L 226.71,88.00 L 229.86,58.00 L 233.01,48.00 L 236.16,83.00 L 239.31,68.00 L 242.46,55.50 L 245.61,50.50 L 248.76,90.50 L 251.91,65.50 L 255.06,95.50 L 258.21,65.50 L 261.36,60.50 L 264.51,118.00 L 267.66,90.50 L 270.81,38.00 L 273.96,90.50 L 277.11,75.50 L 280.26,133.00 L 283.41,63.00 L 286.56,65.50 L 289.71,45.50 L 292.86,73.00 L 296.01,100.50 L 299.16,55.50 L 302.32,65.50 L 305.47,45.50 L 308.62,103.00 L 311.77,120.50 L 314.92,30.50 L 318.07,75.50 L 321.22,68.00 L 324.37,38.00 L 327.52,75.50 L 330.67,23.00 L 333.82,25.50 L 336.97,83.00 L 340.12,90.50 L 343.27,68.00 L 346.42,33.00 L 349.57,83.00 L 352.72,63.00 L 355.87,23.00 L 359.02,58.00 L 362.17,35.50 L 365.32,60.50 L 368.47,45.50 L 371.62,90.50 L 374.77,85.50 L 377.92,80.50 L 381.07,48.00 L 384.22,50.50 L 387.37,35.50 L 390.52,48.00 L 393.67,40.50 L 396.82,63.00 L 399.97,58.00 L 403.12,90.50 L 406.27,43.00 L 409.42,43.00 L 412.57,23.00 L 415.72,23.00 L 418.87,20.50 L 422.02,20.50 L 425.17,23.00 L 428.32,23.00 L 431.47,30.50 L 434.62,20.50 L 437.77,23.00 L 440.92,20.50 L 444.07,23.00 L 447.22,108.00 L 450.37,73.00 L 453.52,23.00 L 456.67,23.00 L 459.82,23.00 L 462.97,23.00 L 466.12,33.00 L 469.27,35.50 L 472.42,28.00 L 475.58,93.00 L 478.73,33.00 L 481.88,38.00 L 485.03,45.50 L 488.18,23.00 L 491.33,25.50 L 494.48,23.00 L 497.63,28.00 L 500.78,23.00 L 503.93,23.00 L 507.08,43.00 L 510.23,30.50 L 513.38,23.00 L 516.53,20.50 L 519.68,50.50 L 522.83,23.00 L 525.98,38.00 L 529.13,20.50 L 532.28,23.00 L 535.43,20.50 L 538.58,23.00 L 541.73,20.50 L 544.88,35.50 L 548.03,20.50 L 551.18,20.50 L 554.33,23.00 L 557.48,75.50 L 560.63,28.00 L 563.78,23.00 L 566.93,23.00 L 570.08,30.50 L 573.23,58.00 L 576.38,80.50 L 579.53,73.00 L 582.68,23.00 L 585.83,23.00 L 588.98,75.50 L 592.13,38.00 L 595.28,30.50 L 598.43,20.50 L 601.58,83.00 L 604.73,23.00 L 607.88,23.00 L 611.03,23.00 L 614.18,23.00 L 617.33,43.00 L 620.48,23.00 L 623.63,50.50 L 626.78,30.50 L 629.93,40.50 L 633.08,20.50 L 636.23,23.00 L 639.38,23.00 L 642.53,28.00 L 645.68,53.00 L 648.84,80.50 L 651.99,23.00 L 655.14,23.00 L 658.29,23.00 L 661.44,23.00 L 664.59,83.00 L 667.74,58.00 L 670.89,20.50 L 674.04,23.00 L 677.19,25.50 L 680.34,25.50 L 683.49,43.00 L 686.64,20.50 L 689.79,25.50 L 692.94,23.00 L 696.09,23.00 L 699.24,23.00 L 702.39,25.50 L 705.54,70.50 L 708.69,20.50 L 711.84,25.50 L 714.99,23.00 L 718.14,23.00 L 721.29,45.50 L 724.44,23.00 L 727.59,23.00 L 730.74,23.00 L 733.89,33.00 L 737.04,23.00 L 740.19,23.00 L 743.34,85.50 L 746.49,20.50 L 749.64,23.00 L 752.79,23.00 L 755.94,20.50 L 759.09,23.00 L 762.24,28.00 L 765.39,48.00 L 768.54,20.50 L 771.69,20.50 L 774.84,20.50 L 777.99,23.00 L 781.14,35.50 L 784.29,25.50 L 787.44,40.50 L 790.59,25.50 L 793.74,20.50 L 796.89,23.00 L 800.04,60.50 L 803.19,23.00 L 806.34,63.00 L 809.49,73.00 L 812.64,23.00 L 815.79,55.50 L 818.95,23.00 L 822.10,23.00 L 825.25,85.50 L 828.40,23.00 L 831.55,58.00 L 834.70,78.00 L 837.85,103.00 L 841.00,23.00 L 844.15,43.00 L 847.30,20.50 L 850.45,20.50 L 853.60,23.00 L 856.75,70.50 L 859.90,20.50 L 863.05,23.00 L 866.20,38.00 L 869.35,30.50 L 872.50,23.00 L 875.65,23.00 L 878.80,23.00 L 881.95,53.00 L 885.10,23.00 L 888.25,23.00 L 891.40,23.00 L 894.55,23.00 L 897.70,23.00 L 900.85,20.50 L 904.00,38.00" class="svg-line-d"/>
-
-  <circle cx='44.00' cy='173.00' r='2.6' class='svg-dot-m'/><circle cx='81.80' cy='148.00' r='2.6' class='svg-dot-m'/><circle cx='119.60' cy='148.00' r='2.6' class='svg-dot-m'/><circle cx='157.41' cy='135.50' r='2.6' class='svg-dot-m'/><circle cx='195.21' cy='150.50' r='2.6' class='svg-dot-m'/><circle cx='233.01' cy='135.50' r='2.6' class='svg-dot-m'/><circle cx='270.81' cy='140.50' r='2.6' class='svg-dot-m'/><circle cx='308.62' cy='155.50' r='2.6' class='svg-dot-m'/><circle cx='346.42' cy='113.00' r='2.6' class='svg-dot-m'/><circle cx='384.22' cy='115.50' r='2.6' class='svg-dot-m'/><circle cx='422.02' cy='75.50' r='2.6' class='svg-dot-m'/><circle cx='459.82' cy='75.50' r='2.6' class='svg-dot-m'/><circle cx='497.63' cy='73.00' r='2.6' class='svg-dot-m'/><circle cx='535.43' cy='73.00' r='2.6' class='svg-dot-m'/><circle cx='573.23' cy='73.00' r='2.6' class='svg-dot-m'/><circle cx='611.03' cy='60.50' r='2.6' class='svg-dot-m'/><circle cx='648.84' cy='75.50' r='2.6' class='svg-dot-m'/><circle cx='686.64' cy='73.00' r='2.6' class='svg-dot-m'/><circle cx='724.44' cy='75.50' r='2.6' class='svg-dot-m'/><circle cx='762.24' cy='75.50' r='2.6' class='svg-dot-m'/><circle cx='800.04' cy='85.50' r='2.6' class='svg-dot-m'/><circle cx='837.85' cy='75.50' r='2.6' class='svg-dot-m'/><circle cx='875.65' cy='75.50' r='2.6' class='svg-dot-m'/><circle cx='904.00' cy='80.50' r='2.6' class='svg-dot-m'/>
-  <circle cx='44.00' cy='103.00' r='2.6' class='svg-dot-d'/><circle cx='81.80' cy='108.00' r='2.6' class='svg-dot-d'/><circle cx='119.60' cy='88.00' r='2.6' class='svg-dot-d'/><circle cx='157.41' cy='70.50' r='2.6' class='svg-dot-d'/><circle cx='195.21' cy='100.50' r='2.6' class='svg-dot-d'/><circle cx='233.01' cy='48.00' r='2.6' class='svg-dot-d'/><circle cx='270.81' cy='38.00' r='2.6' class='svg-dot-d'/><circle cx='308.62' cy='103.00' r='2.6' class='svg-dot-d'/><circle cx='346.42' cy='33.00' r='2.6' class='svg-dot-d'/><circle cx='384.22' cy='50.50' r='2.6' class='svg-dot-d'/><circle cx='422.02' cy='20.50' r='2.6' class='svg-dot-d'/><circle cx='459.82' cy='23.00' r='2.6' class='svg-dot-d'/><circle cx='497.63' cy='28.00' r='2.6' class='svg-dot-d'/><circle cx='535.43' cy='20.50' r='2.6' class='svg-dot-d'/><circle cx='573.23' cy='58.00' r='2.6' class='svg-dot-d'/><circle cx='611.03' cy='23.00' r='2.6' class='svg-dot-d'/><circle cx='648.84' cy='80.50' r='2.6' class='svg-dot-d'/><circle cx='686.64' cy='20.50' r='2.6' class='svg-dot-d'/><circle cx='724.44' cy='23.00' r='2.6' class='svg-dot-d'/><circle cx='762.24' cy='28.00' r='2.6' class='svg-dot-d'/><circle cx='800.04' cy='60.50' r='2.6' class='svg-dot-d'/><circle cx='837.85' cy='103.00' r='2.6' class='svg-dot-d'/><circle cx='875.65' cy='23.00' r='2.6' class='svg-dot-d'/><circle cx='904.00' cy='38.00' r='2.6' class='svg-dot-d'/>
-
-  <text x='44.00' y='228' text-anchor='middle' class='svg-x'>20:05</text><text x='119.60' y='228' text-anchor='middle' class='svg-x'>11:52</text><text x='195.21' y='228' text-anchor='middle' class='svg-x'>07:39</text><text x='270.81' y='228' text-anchor='middle' class='svg-x'>03:28</text><text x='346.42' y='228' text-anchor='middle' class='svg-x'>21:45</text><text x='422.02' y='228' text-anchor='middle' class='svg-x'>20:50</text><text x='497.63' y='228' text-anchor='middle' class='svg-x'>16:05</text><text x='573.23' y='228' text-anchor='middle' class='svg-x'>08:00</text><text x='648.84' y='228' text-anchor='middle' class='svg-x'>16:54</text><text x='724.44' y='228' text-anchor='middle' class='svg-x'>00:00</text><text x='800.04' y='228' text-anchor='middle' class='svg-x'>14:46</text><text x='875.65' y='228' text-anchor='middle' class='svg-x'>22:56</text><text x='904.00' y='228' text-anchor='middle' class='svg-x'>08:42</text>
-</svg>
-
-    </div>
-
-    <div class="two">
-      <div>
-        
-          <h2>Mobile scores</h2>
-          <div class="grid">
-            
-              <div class="card ok">
-                <div class="k">Performance</div>
-                <div class="v">75</div>
-                <div class="d">▲ +6</div>
-              </div>
-            
-              <div class="card good">
-                <div class="k">Accessibility</div>
-                <div class="v">93</div>
-                <div class="d">• 0</div>
-              </div>
-            
-              <div class="card good">
-                <div class="k">Best Practices</div>
-                <div class="v">100</div>
-                <div class="d">• 0</div>
-              </div>
-            
-              <div class="card bad">
-                <div class="k">Seo</div>
-                <div class="v">54</div>
-                <div class="d">• 0</div>
-              </div>
-            
-          </div>
-        
-      </div>
-      <div>
-        
-          <h2>Desktop scores</h2>
-          <div class="grid">
-            
-              <div class="card good">
-                <div class="k">Performance</div>
-                <div class="v">92</div>
-                <div class="d">▼ -7</div>
-              </div>
-            
-              <div class="card good">
-                <div class="k">Accessibility</div>
-                <div class="v">97</div>
-                <div class="d">▲ +4</div>
-              </div>
-            
-              <div class="card good">
-                <div class="k">Best Practices</div>
-                <div class="v">100</div>
-                <div class="d">• 0</div>
-              </div>
-            
-              <div class="card bad">
-                <div class="k">Seo</div>
-                <div class="v">54</div>
-                <div class="d">• 0</div>
-              </div>
-            
-          </div>
-        
-      </div>
-    </div>
-
-    <details>
-      <summary><b>Core Web Vitals (Mobile / Desktop)</b></summary>
-      <h3>Mobile</h3>
-      <pre>{
-  "LCP": "4.5 s",
-  "INP": null,
-  "CLS": "0",
-  "FCP": "2.1 s",
-  "TTFB": "Root document took 140 ms"
-}</pre>
-      <h3>Desktop</h3>
-      <pre>{
-  "LCP": "1.1 s",
-  "INP": null,
-  "CLS": "0",
-  "FCP": "0.6 s",
-  "TTFB": "Root document took 100 ms"
-}</pre>
-    </details>
-
+                <div class="card">
+                  <div class="k">https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/</div>
+                  <div class="v">M 78 / D 90</div>
+                </div>
+                
+                <div class="card">
+                  <div class="k">https://public.websites-qa.eu-central-1.kncloud.aws.int.kn/</div>
+                  <div class="v">M 45 / D 64</div>
+                </div>
+                
+                <div class="card">
+                  <div class="k">https://public.websites-prod.eu-central-1.kncloud.aws.int.kn/</div>
+                  <div class="err">Error</div>
+                  <div class="small">[mobile][https://public.websites-prod.eu-central-1.kncloud.aws.int.kn/] PSI error 400: {&#39;error&#39;: {&#39;code&#39;: 400, &#39;message&#39;: &#39;Lighthouse returned error: FAILED_DOCUMENT_REQUEST. Lighthouse was unable to reliably load the page you requested. Make sure you are testing the correct URL and that the server is properly responding to all requests. (Details: net::ERR_CONNECTION_FAILED)&#39;, &#39;errors&#39;: [{&#39;message&#39;: &#39;Lighthouse returned error: FAILED_DOCUMENT_REQUEST. Lighthouse was unable to reliably load the page you requested. Make sure you are testing the correct URL and that the server is properly responding to all requests. (Details: net::ERR_CONNECTION_FAILED)&#39;, &#39;domain&#39;: &#39;lighthouse&#39;, &#39;reason&#39;: &#39;lighthouseUserError&#39;}]}}</div>
+                </div>
+                
   </div>
+
+  <div class="chart">
+    <h2>3-day trend (all runs)</h2>
+    <div class='meta'>Not enough history for chart yet. Current points: 1</div>
+  </div>
+
+  <p class="meta">Full daily report: <a href="full.html">full.html</a></p>
 </body>
 </html>
