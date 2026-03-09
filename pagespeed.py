@@ -3,7 +3,7 @@ import time
 import random
 import json
 import datetime as dt
-from typing import Optional, Dict, Any, List, Tuple
+from typing import Dict, Any, List
 
 import requests
 from requests.exceptions import ReadTimeout, ConnectionError, Timeout
@@ -12,318 +12,341 @@ from requests.exceptions import ReadTimeout, ConnectionError, Timeout
 # CONFIG
 # =========================
 
-URL = "https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/"
-API_KEY = os.environ.get("PSI_API_KEY", "")  # GitHub Secret PSI_API_KEY
+URLS = [
+    "https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/",
+    "https://public.websites-qa.eu-central-1.kncloud.aws.int.kn/",
+    "https://public.websites-prod.eu-central-1.kncloud.aws.int.kn/",
+]
 
+API_KEY = os.environ.get("PSI_API_KEY", "")
 API = "https://www.googleapis.com/pagespeedonline/v5/runPagespeed"
+
 OUT_DIR = "reports"
+HISTORY_FILE = os.path.join(OUT_DIR, "history.jsonl")
 
-CATEGORIES = ["performance", "accessibility", "best-practices", "seo"]
-
-GOOD = 90
-OK = 70
-
-# Runs every 5 minutes, keep 3 days of chart history:
-# 3 days = 72 hours, 12 points/hour => 864 points
+# 3 days history if job runs every 5 minutes:
+# 72 hours * 12 points/hour = 864 points
 CHART_POINTS = 864
 
-# chart settings (SVG)
+# Performance only
+CATEGORIES = ["performance"]
+
+# show dots every hour (12 points) + latest point
+DOT_STEP = 12
+
+# chart settings
 CHART_W = 920
-CHART_H = 250
+CHART_H = 260
 CHART_PAD_L = 44
 CHART_PAD_R = 16
 CHART_PAD_T = 18
-CHART_PAD_B = 52
-
-# dots: show 1 per hour + last point (12 points/hour if every 5 min)
-DOT_STEP = 12
+CHART_PAD_B = 56
 
 SESSION = requests.Session()
+
+
+# =========================
+# HELPERS
+# =========================
+
+def slugify_url(url: str) -> str:
+    value = url.replace("https://", "").replace("http://", "")
+    value = value.strip("/").replace("/", "_").replace(".", "_").replace(":", "_")
+    return value
+
+
+def html_escape(value: str) -> str:
+    return (
+        value.replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+        .replace('"', "&quot;")
+        .replace("'", "&#39;")
+    )
+
 
 # =========================
 # PSI REQUEST
 # =========================
 
-def fetch(strategy: str, max_attempts: int = 7) -> Dict[str, Any]:
-    params = {"url": URL, "strategy": strategy, "category": CATEGORIES}
+def fetch(url: str, strategy: str, max_attempts: int = 10) -> Dict[str, Any]:
+    params = {
+        "url": url,
+        "strategy": strategy,
+        "category": CATEGORIES,
+    }
     if API_KEY:
         params["key"] = API_KEY
 
-    # (connect timeout, read timeout)
     timeout = (10, 300)
+    retry_http = {429, 500, 502, 503, 504}
+    last_err = None
 
     for attempt in range(1, max_attempts + 1):
         try:
-            r = SESSION.get(API, params=params, timeout=timeout)
+            response = SESSION.get(API, params=params, timeout=timeout)
 
-            if r.status_code == 200:
-                return r.json()
+            if response.status_code == 200:
+                return response.json()
 
-            if r.status_code == 429:
-                wait = min(90, (2 ** (attempt - 1))) + random.uniform(0, 1.5)
-                print("[{}] 429 Too Many Requests → retry {}/{} in {:.1f}s".format(
-                    strategy, attempt, max_attempts, wait
-                ))
+            if response.status_code in retry_http:
+                wait = min(120, (2 ** (attempt - 1))) + random.uniform(0, 2.0)
+                print(
+                    "[{}][{}] HTTP {} -> retry {}/{} in {:.1f}s".format(
+                        strategy, url, response.status_code, attempt, max_attempts, wait
+                    )
+                )
                 time.sleep(wait)
+                last_err = "HTTP {}".format(response.status_code)
                 continue
 
             try:
-                details = r.json()
+                details = response.json()
             except Exception:
-                details = r.text
-            raise RuntimeError("[{}] PSI error {}: {}".format(strategy, r.status_code, details))
+                details = (response.text or "")[:800]
 
-        except (ReadTimeout, Timeout, ConnectionError) as e:
-            wait = min(90, (2 ** (attempt - 1))) + random.uniform(0, 1.5)
-            print("[{}] Network/timeout: {} → retry {}/{} in {:.1f}s".format(
-                strategy, str(e), attempt, max_attempts, wait
-            ))
+            raise RuntimeError(
+                "[{}][{}] PSI error {}: {}".format(
+                    strategy, url, response.status_code, details
+                )
+            )
+
+        except (ReadTimeout, Timeout, ConnectionError) as exc:
+            wait = min(120, (2 ** (attempt - 1))) + random.uniform(0, 2.0)
+            print(
+                "[{}][{}] timeout/network {} -> retry {}/{} in {:.1f}s".format(
+                    strategy, url, exc, attempt, max_attempts, wait
+                )
+            )
             time.sleep(wait)
-            continue
+            last_err = str(exc)
 
-    raise RuntimeError("[{}] PSI failed after {} attempts (timeouts/429).".format(strategy, max_attempts))
+    raise RuntimeError(
+        "[{}][{}] PSI failed after {} attempts. Last error: {}".format(
+            strategy, url, max_attempts, last_err
+        )
+    )
 
-
-# =========================
-# PARSE METRICS
-# =========================
 
 def lh_score(data: Dict[str, Any], category: str) -> int:
     return int(round(data["lighthouseResult"]["categories"][category]["score"] * 100))
 
 
-def audit_display(audits: Dict[str, Any], key: str):
-    a = audits.get(key, {})
-    return a.get("displayValue") or a.get("numericValue")
-
-
-def core_web_vitals(data: Dict[str, Any]) -> Dict[str, Any]:
-    audits = data["lighthouseResult"]["audits"]
-    return {
-        "LCP": audit_display(audits, "largest-contentful-paint"),
-        "INP": audit_display(audits, "interaction-to-next-paint"),
-        "CLS": audit_display(audits, "cumulative-layout-shift"),
-        "FCP": audit_display(audits, "first-contentful-paint"),
-        "TTFB": audit_display(audits, "server-response-time"),
-    }
-
-
-def status_chip(score: int) -> str:
-    if score >= GOOD:
-        return "good"
-    if score >= OK:
-        return "ok"
-    return "bad"
-
-
-def arrow(delta: Optional[int]) -> str:
-    if delta is None:
-        return "—"
-    if delta > 0:
-        return "▲ +{}".format(delta)
-    if delta < 0:
-        return "▼ {}".format(delta)
-    return "• 0"
-
-
 # =========================
-# FILE IO + HISTORY
+# HISTORY (JSONL)
 # =========================
 
-def safe_read_json(path: str) -> Optional[Dict[str, Any]]:
-    try:
-        with open(path, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return None
+def append_jsonl(path: str, obj: Dict[str, Any]) -> None:
+    with open(path, "a", encoding="utf-8") as file:
+        file.write(json.dumps(obj, ensure_ascii=False) + "\n")
 
 
-def write_json(path: str, obj: Dict[str, Any]) -> None:
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(obj, f, ensure_ascii=False, indent=2)
+def tail_jsonl(path: str, n: int) -> List[Dict[str, Any]]:
+    if not os.path.exists(path):
+        return []
 
+    block_size = 64 * 1024
+    data = b""
+    lines: List[bytes] = []
 
-def snapshot_sort_key(filename: str) -> str:
-    """
-    Supports both:
-      snapshot-YYYY-MM-DD.json
-      snapshot-YYYY-MM-DDTHHMM.json
-    Lexicographic sort works for both formats.
-    """
-    core = filename[len("snapshot-"):-len(".json")]
-    return core
+    with open(path, "rb") as file:
+        file.seek(0, os.SEEK_END)
+        pos = file.tell()
 
+        while pos > 0 and len(lines) <= n:
+            read_size = block_size if pos >= block_size else pos
+            pos -= read_size
+            file.seek(pos)
+            data = file.read(read_size) + data
+            lines = data.splitlines()
 
-def list_last_snapshots(out_dir: str, points: int) -> Tuple[List[Dict[str, Any]], List[str]]:
-    """
-    Reads snapshot-*.json (both daily and timestamped formats),
-    sorts by name, returns last N snapshots + last few filenames for debugging.
-    """
-    names = [n for n in os.listdir(out_dir) if n.startswith("snapshot-") and n.endswith(".json")]
-    names.sort(key=snapshot_sort_key)
+    last_lines = lines[-n:] if len(lines) >= n else lines
+    out: List[Dict[str, Any]] = []
 
-    tail_names = names[-10:]  # for debug display
-    names = names[-points:]
-
-    snapshots: List[Dict[str, Any]] = []
-    for name in names:
-        obj = safe_read_json(os.path.join(out_dir, name))
-        if obj and isinstance(obj, dict):
-            snapshots.append(obj)
-
-    return snapshots, tail_names
-
-
-def cleanup_old_snapshots(out_dir: str, keep: int) -> None:
-    names = [n for n in os.listdir(out_dir) if n.startswith("snapshot-") and n.endswith(".json")]
-    names.sort(key=snapshot_sort_key)
-    to_delete = names[:-keep] if len(names) > keep else []
-    for name in to_delete:
+    for line in last_lines:
         try:
-            os.remove(os.path.join(out_dir, name))
+            out.append(json.loads(line.decode("utf-8")))
         except Exception:
             pass
 
+    return out
 
-def svg_escape(s: str) -> str:
-    return (s.replace("&", "&amp;")
-            .replace("<", "&lt;")
-            .replace(">", "&gt;")
-            .replace('"', "&quot;")
-            .replace("'", "&#39;"))
+
+def rewrite_last_n_jsonl(path: str, n: int) -> None:
+    items = tail_jsonl(path, n)
+    tmp_path = path + ".tmp"
+
+    with open(tmp_path, "w", encoding="utf-8") as file:
+        for item in items:
+            file.write(json.dumps(item, ensure_ascii=False) + "\n")
+
+    os.replace(tmp_path, path)
 
 
 # =========================
-# SVG CHART (3 DAYS)
+# CHART
 # =========================
 
-def build_perf_svg(history: List[Dict[str, Any]], debug_names: List[str]) -> str:
-    if not history:
-        return (
-            "<div class='meta'>No chart data yet: 0 snapshots found. "
-            "Expected files like <code>reports/snapshot-YYYY-MM-DDTHHMM.json</code>.</div>"
-            "<div class='meta'>Last snapshot filenames: <code>{}</code></div>".format(
-                svg_escape(", ".join(debug_names) if debug_names else "(none)")
-            )
-        )
-
-    labels: List[str] = []
-    mob: List[int] = []
-    desk: List[int] = []
-
-    for s in history:
-        # X label = HH:MM preferred
-        if s.get("time"):
-            labels.append(str(s["time"]))
-        elif s.get("timestamp"):
-            labels.append(str(s["timestamp"])[11:16])
-        else:
-            labels.append(str(s.get("date", ""))[5:] or "?")
-
-        mob.append(int(s["mobile"]["scores"]["performance"]))
-        desk.append(int(s["desktop"]["scores"]["performance"]))
-
-    n = len(labels)
-
-    minv = max(0, min(min(mob), min(desk)) - 5)
-    maxv = min(100, max(max(mob), max(desk)) + 5)
-    if maxv - minv < 10:
-        minv = max(0, minv - 5)
-        maxv = min(100, maxv + 5)
+def build_chart(history: List[Dict[str, Any]], urls: List[str]) -> str:
+    if len(history) < 2:
+        return "<div class='meta'>Not enough history for chart yet. Current points: {}</div>".format(len(history))
 
     plot_w = CHART_W - CHART_PAD_L - CHART_PAD_R
     plot_h = CHART_H - CHART_PAD_T - CHART_PAD_B
 
-    def x(i: int) -> float:
-        if n == 1:
-            return CHART_PAD_L + plot_w / 2
-        return CHART_PAD_L + (plot_w * i / float(n - 1))
+    labels: List[str] = []
+    per_url_mobile: Dict[str, List[int]] = {url: [] for url in urls}
+    per_url_desktop: Dict[str, List[int]] = {url: [] for url in urls}
 
-    def y(v: int) -> float:
+    for item in history:
+        labels.append(item.get("time", item.get("timestamp", "")[11:16]))
+
+        results = item.get("results", [])
+        result_map = {r["url"]: r for r in results if "url" in r}
+
+        for url in urls:
+            result = result_map.get(url)
+            if result and "error" not in result:
+                per_url_mobile[url].append(int(result["mobile"]["performance"]))
+                per_url_desktop[url].append(int(result["desktop"]["performance"]))
+            else:
+                # Keep continuity with previous value if present, else 0
+                if per_url_mobile[url]:
+                    per_url_mobile[url].append(per_url_mobile[url][-1])
+                    per_url_desktop[url].append(per_url_desktop[url][-1])
+                else:
+                    per_url_mobile[url].append(0)
+                    per_url_desktop[url].append(0)
+
+    all_values: List[int] = []
+    for url in urls:
+        all_values.extend(per_url_mobile[url])
+        all_values.extend(per_url_desktop[url])
+
+    minv = max(0, min(all_values) - 5)
+    maxv = min(100, max(all_values) + 5)
+    if maxv - minv < 10:
+        minv = max(0, minv - 5)
+        maxv = min(100, maxv + 5)
+
+    n = len(labels)
+
+    def x(idx: int) -> float:
+        return CHART_PAD_L + (plot_w * idx / float(n - 1))
+
+    def y(value: int) -> float:
         if maxv == minv:
-            return CHART_PAD_T + plot_h / 2
-        t = (v - minv) / float(maxv - minv)
-        return CHART_PAD_T + (plot_h * (1.0 - t))
+            ratio = 0.5
+        else:
+            ratio = (value - minv) / float(maxv - minv)
+        return CHART_PAD_T + (plot_h * (1.0 - ratio))
 
     def path(series: List[int]) -> str:
-        pts = ["{:.2f},{:.2f}".format(x(i), y(v)) for i, v in enumerate(series)]
-        return "M " + " L ".join(pts) if pts else ""
+        points = ["{:.2f},{:.2f}".format(x(i), y(v)) for i, v in enumerate(series)]
+        return "M " + " L ".join(points)
 
-    # y ticks: min / mid / max
-    ticks = [minv, int((minv + maxv) / 2), maxv]
-
-    ygrid = []
-    for tv in ticks:
-        yy = y(tv)
-        ygrid.append("<line x1='{l}' y1='{y:.2f}' x2='{r}' y2='{y:.2f}' class='svg-grid'/>".format(
-            l=CHART_PAD_L, r=CHART_PAD_L + plot_w, y=yy
-        ))
-        ygrid.append("<text x='{x}' y='{y:.2f}' text-anchor='end' class='svg-y'>{tv}</text>".format(
-            x=CHART_PAD_L - 8, y=yy + 4, tv=tv
-        ))
-
-    # x labels: show every 2 hours to avoid clutter (2h = 24 points)
-    # if less points, show more frequently
-    if n <= 60:
-        step = 6   # every 30 min
-    elif n <= 200:
-        step = 12  # every 1 hour
-    else:
-        step = 24  # every 2 hours
-
-    xlabels = []
-    for i, lab in enumerate(labels):
-        if (i % step != 0) and (i != n - 1):
-            continue
-        xlabels.append("<text x='{:.2f}' y='{}' text-anchor='middle' class='svg-x'>{}</text>".format(
-            x(i), CHART_PAD_T + plot_h + 30, svg_escape(lab)
-        ))
-
-    # dots: hourly + last (so you SEE points)
     def dots(series: List[int], cls: str) -> str:
         out = []
         last_i = len(series) - 1
-        for i, v in enumerate(series):
+        for i, value in enumerate(series):
             if (i % DOT_STEP != 0) and (i != last_i):
                 continue
-            out.append("<circle cx='{:.2f}' cy='{:.2f}' r='2.6' class='{}'/>".format(x(i), y(v), cls))
+            out.append(
+                "<circle cx='{:.2f}' cy='{:.2f}' r='2.4' class='{}'/>".format(
+                    x(i), y(value), cls
+                )
+            )
         return "".join(out)
 
-    mob_dots = dots(mob, "svg-dot-m")
-    desk_dots = dots(desk, "svg-dot-d")
+    ticks = [minv, int((minv + maxv) / 2), maxv]
+    ygrid = []
+    for tick in ticks:
+        yy = y(tick)
+        ygrid.append(
+            "<line x1='{l}' y1='{y:.2f}' x2='{r}' y2='{y:.2f}' class='svg-grid'/>".format(
+                l=CHART_PAD_L, r=CHART_PAD_L + plot_w, y=yy
+            )
+        )
+        ygrid.append(
+            "<text x='{x}' y='{y:.2f}' text-anchor='end' class='svg-y'>{tick}</text>".format(
+                x=CHART_PAD_L - 8, y=yy + 4, tick=tick
+            )
+        )
 
-    # deltas vs previous point
-    last_m = mob[-1]
-    last_d = desk[-1]
-    prev_m = mob[-2] if len(mob) >= 2 else None
-    prev_d = desk[-2] if len(desk) >= 2 else None
-    dm = (last_m - prev_m) if prev_m is not None else None
-    dd = (last_d - prev_d) if prev_d is not None else None
+    label_step = 24 if n > 200 else 12
+    xlabels = []
+    for i, label in enumerate(labels):
+        if (i % label_step != 0) and (i != n - 1):
+            continue
+        xlabels.append(
+            "<text x='{:.2f}' y='{}' text-anchor='middle' class='svg-x'>{}</text>".format(
+                x(i), CHART_PAD_T + plot_h + 32, html_escape(label)
+            )
+        )
 
-    legend = """
-      <div class="legend">
-        <span class="leg"><span class="sw sw-m"></span> Mobile: <b>{m}</b> <span class="delta">{dm}</span></span>
-        <span class="leg"><span class="sw sw-d"></span> Desktop: <b>{d}</b> <span class="delta">{dd}</span></span>
-      </div>
-    """.format(m=last_m, d=last_d, dm=arrow(dm), dd=arrow(dd))
+    series_colors = [
+        ("s1", "s1d"),
+        ("s2", "s2d"),
+        ("s3", "s3d"),
+    ]
 
-    svg = """{legend}
-<svg width="{w}" height="{h}" viewBox="0 0 {w} {h}" role="img" aria-label="3-day Performance trend (5-min runs)">
-  <rect x="0" y="0" width="{w}" height="{h}" rx="16" class="svg-bg"/>
-  {ygrid}
-  <line x1="{l}" y1="{t}" x2="{l}" y2="{b}" class="svg-axis"/>
-  <line x1="{l}" y1="{b}" x2="{r}" y2="{b}" class="svg-axis"/>
+    legend_parts = []
+    series_parts = []
 
-  <path d="{mp}" class="svg-line-m"/>
-  <path d="{dp}" class="svg-line-d"/>
+    for idx, url in enumerate(urls):
+        mobile = per_url_mobile[url]
+        desktop = per_url_desktop[url]
+        slug = slugify_url(url)
 
-  {mob_dots}
-  {desk_dots}
+        mobile_cls, desktop_cls = series_colors[idx % len(series_colors)]
 
-  {xlabels}
-</svg>
-""".format(
-        legend=legend,
+        legend_parts.append(
+            """
+            <div class="legend-row">
+              <span class="sw {mcls}"></span><span>{url} Mobile: <b>{mv}</b></span>
+              <span class="sw {dcls}"></span><span>{url} Desktop: <b>{dv}</b></span>
+            </div>
+            """.format(
+                mcls=mobile_cls,
+                dcls=desktop_cls,
+                url=html_escape(url),
+                mv=mobile[-1],
+                dv=desktop[-1],
+            )
+        )
+
+        series_parts.append(
+            """
+            <path d="{mpath}" class="svg-line {mcls}"/>
+            <path d="{dpath}" class="svg-line dashed {dcls}"/>
+            {mdots}
+            {ddots}
+            """.format(
+                mpath=path(mobile),
+                dpath=path(desktop),
+                mcls=mobile_cls,
+                dcls=desktop_cls,
+                mdots=dots(mobile, "svg-dot {}".format(mobile_cls)),
+                ddots=dots(desktop, "svg-dot {}".format(desktop_cls)),
+            )
+        )
+
+    return """
+    <div class="legend">
+      {legend}
+    </div>
+    <svg width="{w}" height="{h}" viewBox="0 0 {w} {h}">
+      <rect x="0" y="0" width="{w}" height="{h}" rx="16" class="svg-bg"/>
+      {ygrid}
+      <line x1="{l}" y1="{t}" x2="{l}" y2="{b}" class="svg-axis"/>
+      <line x1="{l}" y1="{b}" x2="{r}" y2="{b}" class="svg-axis"/>
+
+      {series}
+
+      {xlabels}
+    </svg>
+    """.format(
+        legend="".join(legend_parts),
         w=CHART_W,
         h=CHART_H,
         ygrid="".join(ygrid),
@@ -331,179 +354,126 @@ def build_perf_svg(history: List[Dict[str, Any]], debug_names: List[str]) -> str
         r=CHART_PAD_L + plot_w,
         t=CHART_PAD_T,
         b=CHART_PAD_T + plot_h,
-        mp=path(mob),
-        dp=path(desk),
-        mob_dots=mob_dots,
-        desk_dots=desk_dots,
+        series="".join(series_parts),
         xlabels="".join(xlabels),
     )
-    return svg
 
 
 # =========================
-# MANAGER HTML
+# HTML
 # =========================
 
-def build_manager_html(
-    run_label: str,
-    snapshot: Dict[str, Any],
-    prev_snapshot: Optional[Dict[str, Any]],
-    history: List[Dict[str, Any]],
-    debug_names: List[str]
-) -> str:
-    now_m = snapshot["mobile"]["scores"]
-    now_d = snapshot["desktop"]["scores"]
+def build_error_html(run_label: str, message: str) -> str:
+    return """<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>PageSpeed — error</title>
+  <style>
+    body {{ font-family: -apple-system, Segoe UI, Roboto, Arial; margin: 26px; }}
+    pre {{ background:#f6f6f6; padding:12px; border-radius:12px; overflow:auto; }}
+  </style>
+</head>
+<body>
+  <h1>PageSpeed — temporary error</h1>
+  <p><b>Run:</b> {run}</p>
+  <pre>{message}</pre>
+</body>
+</html>
+""".format(run=run_label, message=html_escape(message))
 
-    prev_m = prev_snapshot["mobile"]["scores"] if prev_snapshot else None
-    prev_d = prev_snapshot["desktop"]["scores"] if prev_snapshot else None
 
-    def perf_kpi(label: str, now_scores: Dict[str, Any], prev_scores: Optional[Dict[str, Any]]) -> str:
-        now = int(now_scores["performance"])
-        prev = int(prev_scores["performance"]) if prev_scores else None
-        d = (now - prev) if prev is not None else None
-        return """
-          <div class="kpi">
-            <div class="kpi-title">{label}</div>
-            <div class="kpi-value">{now}</div>
-            <div class="kpi-delta">{delta}</div>
-          </div>
-        """.format(label=label, now=now, delta=arrow(d))
+def build_html(run_label: str, results: List[Dict[str, Any]], history: List[Dict[str, Any]]) -> str:
+    cards = []
 
-    def score_grid(title: str, now_scores: Dict[str, Any], prev_scores: Optional[Dict[str, Any]]) -> str:
-        cards = []
-        for c in CATEGORIES:
-            now = int(now_scores[c])
-            prev = int(prev_scores[c]) if (prev_scores and c in prev_scores) else None
-            d = (now - prev) if prev is not None else None
-            chip = status_chip(now)
-            cards.append("""
-              <div class="card {chip}">
-                <div class="k">{name}</div>
-                <div class="v">{now}</div>
-                <div class="d">{delta}</div>
-              </div>
-            """.format(
-                chip=chip,
-                name=c.replace("-", " ").title(),
-                now=now,
-                delta=arrow(d)
-            ))
+    for item in results:
+        if "error" in item:
+            cards.append(
+                """
+                <div class="card">
+                  <div class="k">{url}</div>
+                  <div class="err">Error</div>
+                  <div class="small">{err}</div>
+                </div>
+                """.format(
+                    url=html_escape(item["url"]),
+                    err=html_escape(item["error"]),
+                )
+            )
+        else:
+            cards.append(
+                """
+                <div class="card">
+                  <div class="k">{url}</div>
+                  <div class="v">M {m} / D {d}</div>
+                </div>
+                """.format(
+                    url=html_escape(item["url"]),
+                    m=item["mobile"]["performance"],
+                    d=item["desktop"]["performance"],
+                )
+            )
 
-        return """
-          <h2>{title}</h2>
-          <div class="grid">
-            {cards}
-          </div>
-        """.format(title=title, cards="".join(cards))
-
-    chart_svg = build_perf_svg(history, debug_names)
+    chart = build_chart(history, URLS)
 
     return """<!doctype html>
 <html>
 <head>
-  <meta charset="utf-8" />
-  <title>PageSpeed — Latest</title>
+  <meta charset="utf-8">
+  <title>PageSpeed — Performance</title>
   <style>
     body {{ font-family: -apple-system, Segoe UI, Roboto, Arial; margin: 26px; }}
-    .meta {{ color:#555; margin-top: 6px; }}
-    .wrap {{ max-width: 980px; }}
-    .top {{ display:flex; justify-content:space-between; align-items:flex-end; gap: 16px; flex-wrap: wrap; }}
-    .pill {{ padding: 6px 10px; border-radius: 999px; background:#f2f2f2; font-size: 12px; }}
-    .kpi-row {{ display:flex; gap: 12px; flex-wrap: wrap; margin: 16px 0 8px; }}
-    .kpi {{ border:1px solid #e8e8e8; border-radius:16px; padding:12px 14px; min-width: 220px; flex: 1; }}
-    .kpi-title {{ color:#666; font-size: 12px; }}
-    .kpi-value {{ font-size: 42px; font-weight: 800; line-height: 1.0; margin-top: 6px; }}
-    .kpi-delta {{ margin-top: 6px; color:#444; }}
-    h2 {{ margin: 18px 0 10px; }}
-    .grid {{ display:flex; gap:12px; flex-wrap:wrap; }}
-    .card {{ border:1px solid #e8e8e8; border-radius:16px; padding:12px 14px; min-width: 210px; }}
-    .card.good {{ border-color:#cfe9d7; }}
-    .card.ok {{ border-color:#efe3bf; }}
-    .card.bad {{ border-color:#f0c7c7; }}
-    .k {{ color:#666; font-size: 12px; }}
-    .v {{ font-size: 34px; font-weight: 800; margin-top: 4px; }}
-    .d {{ margin-top: 6px; color:#444; }}
-    .two {{ display:grid; grid-template-columns: 1fr; gap: 12px; }}
-    @media (min-width: 900px) {{
-      .two {{ grid-template-columns: 1fr 1fr; }}
-    }}
-    details {{ margin: 18px 0; }}
-    pre {{ background:#f6f6f6; padding:12px; border-radius:12px; overflow:auto; }}
-    a {{ color: inherit; }}
+    .meta {{ color:#555; margin-top:6px; }}
+    .row {{ display:flex; gap:12px; flex-wrap:wrap; margin-top:14px; }}
+    .card {{ border:1px solid #eee; border-radius:16px; padding:14px; min-width:280px; flex:1; }}
+    .k {{ color:#666; font-size:12px; word-break:break-all; }}
+    .v {{ font-size:28px; font-weight:800; margin-top:8px; }}
+    .small {{ color:#666; font-size:13px; margin-top:8px; }}
+    .err {{ color:#b00020; font-weight:700; margin-top:8px; }}
 
-    /* chart */
-    .chart {{ margin-top: 18px; }}
-    .legend {{ display:flex; gap: 14px; flex-wrap: wrap; margin: 10px 0 8px; color:#444; }}
-    .leg {{ display:flex; align-items:center; gap:8px; }}
+    .chart {{ margin-top:26px; }}
+    .legend {{ display:flex; flex-direction:column; gap:6px; margin:10px 0 8px; color:#444; }}
+    .legend-row {{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; }}
     .sw {{ display:inline-block; width:14px; height:4px; border-radius:999px; }}
-    .sw-m {{ background:#111; }}
-    .sw-d {{ background:#111; opacity:.55; }}
-    .delta {{ color:#555; }}
-
     .svg-bg {{ fill:#fafafa; stroke:#e8e8e8; }}
     .svg-grid {{ stroke:#e9e9e9; stroke-width:1; }}
     .svg-axis {{ stroke:#d7d7d7; stroke-width:1.2; }}
-    .svg-line-m {{ fill:none; stroke:#111; stroke-width:2.4; }}
-    .svg-line-d {{ fill:none; stroke:#111; stroke-opacity:.55; stroke-width:2.4; stroke-dasharray:6 5; }}
-    .svg-dot-m {{ fill:#111; }}
-    .svg-dot-d {{ fill:#111; opacity:.55; }}
+    .svg-line {{ fill:none; stroke-width:2.2; }}
+    .svg-line.dashed {{ stroke-dasharray:6 5; opacity:.75; }}
+    .svg-dot {{ opacity:.9; }}
     .svg-x {{ font-size:11px; fill:#666; }}
     .svg-y {{ font-size:11px; fill:#666; }}
+
+    .s1 {{ stroke:#111; fill:#111; background:#111; }}
+    .s1d {{ stroke:#111; fill:#111; background:#111; opacity:.55; }}
+    .s2 {{ stroke:#2563eb; fill:#2563eb; background:#2563eb; }}
+    .s2d {{ stroke:#2563eb; fill:#2563eb; background:#2563eb; opacity:.55; }}
+    .s3 {{ stroke:#059669; fill:#059669; background:#059669; }}
+    .s3d {{ stroke:#059669; fill:#059669; background:#059669; opacity:.55; }}
   </style>
 </head>
 <body>
-  <div class="wrap">
-    <div class="top">
-      <div>
-        <h1 style="margin:0;">PageSpeed — Latest</h1>
-        <div class="meta"><b>Run:</b> {run_label} · <b>URL:</b> <a href="{url}">{url}</a></div>
-        <div class="meta"><b>Snapshots used for chart:</b> {n_hist} (showing last {max_pts})</div>
-      </div>
-      <div class="pill">KPI focus: Performance (Mobile & Desktop)</div>
-    </div>
+  <h1 style="margin:0;">PageSpeed — Performance (5 min)</h1>
+  <div class="meta"><b>Run:</b> {run} · <b>URLs:</b> {count} · <b>History points:</b> {history_len}</div>
 
-    <div class="kpi-row">
-      {kpi_m}
-      {kpi_d}
-    </div>
-
-    <div class="chart">
-      <h2>3-day trend (5-minute runs, Performance)</h2>
-      {chart_svg}
-    </div>
-
-    <div class="two">
-      <div>
-        {mobile_grid}
-      </div>
-      <div>
-        {desktop_grid}
-      </div>
-    </div>
-
-    <details>
-      <summary><b>Core Web Vitals (Mobile / Desktop)</b></summary>
-      <h3>Mobile</h3>
-      <pre>{cwv_m}</pre>
-      <h3>Desktop</h3>
-      <pre>{cwv_d}</pre>
-    </details>
-
+  <div class="row">
+    {cards}
   </div>
+
+  <div class="chart">
+    <h2>3-day trend (all runs)</h2>
+    {chart}
+  </div>
+
+  <p class="meta">Full daily report: <a href="full.html">full.html</a></p>
 </body>
 </html>
 """.format(
-        run_label=run_label,
-        url=URL,
-        n_hist=len(history),
-        max_pts=CHART_POINTS,
-        kpi_m=perf_kpi("Mobile Performance", now_m, prev_m),
-        kpi_d=perf_kpi("Desktop Performance", now_d, prev_d),
-        chart_svg=chart_svg,
-        mobile_grid=score_grid("Mobile scores", now_m, prev_m),
-        desktop_grid=score_grid("Desktop scores", now_d, prev_d),
-        cwv_m=json.dumps(snapshot["mobile"]["cwv"], indent=2, ensure_ascii=False),
-        cwv_d=json.dumps(snapshot["desktop"]["cwv"], indent=2, ensure_ascii=False),
+        run=run_label,
+        count=len(results),
+        history_len=len(history),
+        cards="".join(cards),
+        chart=chart,
     )
 
 
@@ -511,80 +481,63 @@ def build_manager_html(
 # MAIN
 # =========================
 
-def main():
+def main() -> None:
     os.makedirs(OUT_DIR, exist_ok=True)
 
     now = dt.datetime.now().astimezone()
     run_label = now.strftime("%Y-%m-%d %H:%M %z")
-    ts_file = now.strftime("%Y-%m-%dT%H%M")  # for filenames
 
-    latest_json = os.path.join(OUT_DIR, "latest.json")
-    prev_snapshot = safe_read_json(latest_json)
+    all_results: List[Dict[str, Any]] = []
 
-    print("Fetching PageSpeed...")
+    for url in URLS:
+        print("Fetching PageSpeed for:", url)
 
-    try:
-        mobile_raw = fetch("mobile")
-        time.sleep(2)  # small spacing helps PSI stability
-        desktop_raw = fetch("desktop")
-    except Exception as e:
-        # ✅ If PSI fails, write fallback report and EXIT cleanly
-        html = build_error_html(run_label, str(e))
+        try:
+            mobile_raw = fetch(url, "mobile")
+            time.sleep(2)
+            desktop_raw = fetch(url, "desktop")
 
-        latest_html = os.path.join(OUT_DIR, "latest.html")
-        with open(latest_html, "w", encoding="utf-8") as f:
-            f.write(html)
+            all_results.append(
+                {
+                    "timestamp": now.isoformat(timespec="minutes"),
+                    "time": now.strftime("%H:%M"),
+                    "url": url,
+                    "mobile": {"performance": lh_score(mobile_raw, "performance")},
+                    "desktop": {"performance": lh_score(desktop_raw, "performance")},
+                }
+            )
+        except Exception as exc:
+            all_results.append(
+                {
+                    "timestamp": now.isoformat(timespec="minutes"),
+                    "time": now.strftime("%H:%M"),
+                    "url": url,
+                    "error": str(exc),
+                }
+            )
 
-        dated_html = os.path.join(OUT_DIR, "report-ERROR-{}.html".format(ts_file))
-        with open(dated_html, "w", encoding="utf-8") as f:
-            f.write(html)
-
-        print("⚠️ PSI fetch failed, wrote fallback report:", latest_html)
-        return  # ✅ IMPORTANT: do not continue
-
-    # ✅ snapshot exists ONLY here (after successful fetch)
-    snapshot = {
-        "date": now.strftime("%Y-%m-%d"),
-        "time": now.strftime("%H:%M"),
+    history_entry = {
         "timestamp": now.isoformat(timespec="minutes"),
-        "url": URL,
-        "mobile": {
-            "scores": {c: lh_score(mobile_raw, c) for c in CATEGORIES},
-            "cwv": core_web_vitals(mobile_raw),
-        },
-        "desktop": {
-            "scores": {c: lh_score(desktop_raw, c) for c in CATEGORIES},
-            "cwv": core_web_vitals(desktop_raw),
-        },
+        "time": now.strftime("%H:%M"),
+        "results": all_results,
     }
 
-    # Save raw PSI JSON
-    write_json(os.path.join(OUT_DIR, "psi-mobile-{}.json".format(ts_file)), mobile_raw)
-    write_json(os.path.join(OUT_DIR, "psi-desktop-{}.json".format(ts_file)), desktop_raw)
+    append_jsonl(HISTORY_FILE, history_entry)
+    rewrite_last_n_jsonl(HISTORY_FILE, CHART_POINTS)
+    history = tail_jsonl(HISTORY_FILE, CHART_POINTS)
 
-    # ✅ Save snapshot history + latest pointer
-    write_json(os.path.join(OUT_DIR, "snapshot-{}.json".format(ts_file)), snapshot)
-    write_json(latest_json, snapshot)
+    if all("error" in item for item in all_results):
+        html = build_error_html(
+            run_label,
+            "All monitored URLs failed during this run. Check GitHub Actions logs.",
+        )
+    else:
+        html = build_html(run_label, all_results, history)
 
-    # keep only last 3 days worth of points
-    cleanup_old_snapshots(OUT_DIR, CHART_POINTS)
+    with open(os.path.join(OUT_DIR, "latest.html"), "w", encoding="utf-8") as file:
+        file.write(html)
 
-    # build history for chart
-    history, debug_names = list_last_snapshots(OUT_DIR, CHART_POINTS)
-
-    html = build_manager_html(run_label, snapshot, prev_snapshot, history, debug_names)
-
-    latest_html = os.path.join(OUT_DIR, "latest.html")
-    with open(latest_html, "w", encoding="utf-8") as f:
-        f.write(html)
-
-    dated_html = os.path.join(OUT_DIR, "report-{}.html".format(ts_file))
-    with open(dated_html, "w", encoding="utf-8") as f:
-        f.write(html)
-
-    print("✅ Done.")
-    print("Latest report:", latest_html)
-    print("Snapshots found for chart:", len(history))
+    print("✅ Done. History points:", len(history))
 
 
 if __name__ == "__main__":
