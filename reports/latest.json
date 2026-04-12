@@ -1,7 +1,7 @@
 {
   "date": "2026-04-12",
-  "time": "22:49",
-  "timestamp": "2026-04-12T22:49+00:00",
+  "time": "23:20",
+  "timestamp": "2026-04-12T23:20+00:00",
   "url": "https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/",
   "mobile": {
     "scores": {
@@ -29,8 +29,8 @@
       "LCP": "1.0 s",
       "INP": null,
       "CLS": "0",
-      "FCP": "0.5 s",
-      "TTFB": "Root document took 10 ms"
+      "FCP": "0.6 s",
+      "TTFB": "Root document took 20 ms"
     }
   }
 }
