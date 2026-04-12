@@ -1,35 +1,35 @@
 {
-  "date": "2026-03-13",
-  "time": "02:32",
-  "timestamp": "2026-03-13T02:32+00:00",
+  "date": "2026-04-12",
+  "time": "15:41",
+  "timestamp": "2026-04-12T15:41+00:00",
   "url": "https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/",
   "mobile": {
     "scores": {
-      "performance": 71,
+      "performance": 42,
       "accessibility": 97,
       "best-practices": 100,
       "seo": 54
     },
     "cwv": {
-      "LCP": "4.8 s",
+      "LCP": "7.2 s",
       "INP": null,
-      "CLS": "0.022",
-      "FCP": "2.6 s",
-      "TTFB": "Root document took 10 ms"
+      "CLS": "1.022",
+      "FCP": "2.9 s",
+      "TTFB": "Root document took 20 ms"
     }
   },
   "desktop": {
     "scores": {
-      "performance": 99,
+      "performance": 98,
       "accessibility": 93,
       "best-practices": 100,
       "seo": 54
     },
     "cwv": {
-      "LCP": "1.0 s",
+      "LCP": "1.1 s",
       "INP": null,
       "CLS": "0",
-      "FCP": "0.5 s",
+      "FCP": "0.6 s",
       "TTFB": "Root document took 10 ms"
     }
   }
