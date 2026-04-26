@@ -1,11 +1,11 @@
 {
   "date": "2026-04-26",
-  "time": "17:57",
-  "timestamp": "2026-04-26T17:57+00:00",
+  "time": "18:45",
+  "timestamp": "2026-04-26T18:45+00:00",
   "url": "https://public.websites-dev.eu-central-1.kncloud.aws.int.kn/",
   "mobile": {
     "scores": {
-      "performance": 76,
+      "performance": 74,
       "accessibility": 93,
       "best-practices": 100,
       "seo": 54
@@ -20,13 +20,13 @@
   },
   "desktop": {
     "scores": {
-      "performance": 92,
+      "performance": 99,
       "accessibility": 93,
       "best-practices": 100,
       "seo": 54
     },
     "cwv": {
-      "LCP": "1.1 s",
+      "LCP": "0.9 s",
       "INP": null,
       "CLS": "0",
       "FCP": "0.6 s",
